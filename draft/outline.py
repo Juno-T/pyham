@@ -37,9 +37,9 @@ class HAM:
     while True:
       smth = yield # smth should be unified
       action = action_selector(self,smth)
-      obsv, reward, done, info = self.execute_function(action)
+      obsv, reward, done, info = self.action_executor(action)
       self.set_observation(obsv)
-      self._tmp_return = None
+      self._tmp_return = obsv
 
   def create_learnable_choice_machine(self, selector):
     """
