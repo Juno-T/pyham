@@ -24,7 +24,8 @@ class HAM:
     self, 
     action_executor: Callable[[Any], Tuple], 
     transition_handler: Callable, 
-    reward_discount: float = 0.9
+    reward_discount: float = 0.9,
+    verbose: bool = False
   ):
     """
       Parameters:
@@ -35,7 +36,8 @@ class HAM:
     self.transition_handler = transition_handler
     self.reward_discount = reward_discount
     self.machines = {}
-    self.machine_count=-1
+    self.machine_count=0
+    self.verbose =verbose
 
   def set_observation(self, obsv):
     self._current_observation=obsv
@@ -78,11 +80,12 @@ class HAM:
     """
       Registering machine created by self._create_*_machine
     """
-    print(name+": \r")
+    if self.verbose:
+      print(name+": \r")
     next(machine)
-    self.machine_count+=1
     if representation is None:
       representation = self.machine_count
+    self.machine_count+=1
     self.machines[name]={
       "machine": machine,
       "representation": representation,
@@ -120,7 +123,8 @@ class HAM:
       Parameters:
         func: A pure python function
     """
-    print("Functional machine initiated")
+    if self.verbose:
+      print("Functional machine initiated")
     while True:
       smth = yield # smth should be unified
       ret = func(self, smth)
@@ -131,7 +135,8 @@ class HAM:
       Parameters:
         action_selector: A pure function that return an action given the input
     """
-    print("Action machine initiated")
+    if self.verbose:
+      print("Action machine initiated")
     while True:
       smth = yield # smth should be unified
       action = action_selector(self,smth)
@@ -148,7 +153,8 @@ class HAM:
       Parameters:
         selector: A pure function that return an option given the input
     """
-    print("Learnable Choice machine initiated")
+    if self.verbose:
+      print("Learnable Choice machine initiated")
     while True:
       smth = yield
       choice = selector(self, smth)
