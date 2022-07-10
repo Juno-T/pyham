@@ -1,7 +1,4 @@
 import unittest
-import sys
-import os
-from pathlib import Path
 
 from pyham import HAM
 from numpy.random import default_rng
@@ -24,7 +21,6 @@ class TestFunctionality(unittest.TestCase):
     self.myham = HAM(env_exe, transition_handler, discount)
     return super().setUp()
 
-  # MARKER
   def test_initialize(self):
     @self.myham.learnable_choice_machine
     def m2_choice(ham, obsv):
@@ -42,7 +38,6 @@ class TestFunctionality(unittest.TestCase):
 
     self.assertTrue(self.myham.machine_count==3)
 
-  #MARKER
   def test_functionality(self):
     @self.myham.learnable_choice_machine
     def m2_choice(ham, obsv):

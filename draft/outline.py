@@ -2,7 +2,6 @@ from __future__ import annotations # for forward reference of HAM and type hint
 import copy
 from typing import Tuple, NamedTuple, Type, Any, Callable, Union
 
-# TODO Test transition/choice point handler/ reward system
 # TODO*** Machine's customizable parameters. Urgent, for repetative actions.
 # TODO refactor
 # TODO HAMQ-INT internal transition skip?
