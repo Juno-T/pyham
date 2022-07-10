@@ -22,7 +22,7 @@ class HAM:
   def __init__(
     self, 
     action_executor: Callable[[Any], Tuple], 
-    transition_handler: Callable, 
+    transition_handler: Callable[[Type[Transition],]], 
     reward_discount: float = 0.9,
     verbose: bool = False
   ):
@@ -125,8 +125,8 @@ class HAM:
     if self.verbose:
       print("Functional machine initiated")
     while True:
-      smth = yield # smth should be unified
-      ret = func(self, smth)
+      args = yield # args should be unified
+      ret = func(self, args)
       self._tmp_return = ret
 
   def _create_action_machine(self, action_selector: Callable[[Type[HAM], Any], Any]):
@@ -137,15 +137,9 @@ class HAM:
     if self.verbose:
       print("Action machine initiated")
     while True:
-      smth = yield # smth should be unified
-      action = action_selector(self,smth)
-      obsv, reward, done, info = self.action_executor(action)
-      self.set_observation(obsv)
-      self._cumulative_reward+=reward*self._cumulative_discount
-      self._cumulative_discount*=self.reward_discount
-      if done:
-        self.choice_point_handler(None, done = True)
-      self._tmp_return = obsv
+      args = yield # args should be unified
+      action = action_selector(self,args)
+      self.CALL_action(action)
 
   def _create_learnable_choice_machine(self, selector: Callable[[Type[HAM], Any], Any]):
     """
@@ -155,12 +149,12 @@ class HAM:
     if self.verbose:
       print("Learnable Choice machine initiated")
     while True:
-      smth = yield
-      choice = selector(self, smth)
+      args = yield
+      choice = selector(self, args)
       self.choice_point_handler(choice)
       self._tmp_return = choice
 
-  def CALL(self, machine: Union[str, Callable]):
+  def CALL(self, machine: Union[str, Callable], args=None):
     """
       A method to CALL other registered machine.
       Parameters:
@@ -173,12 +167,22 @@ class HAM:
     assert(machine_name in self.machines)
     try:
       self._machine_stack.append(self.machines[machine_name]["representation"])
-      self.machines[machine_name]["machine"].send(self._current_observation) # TODO this will define all the smth
+      self.machines[machine_name]["machine"].send(args) # TODO this will define all the args
       self._machine_stack.pop()
     except StopIteration:
       print("STOP ITERATION??")
       self._tmp_return = None
     return self._tmp_return
+
+  def CALL_action(self, action):
+    obsv, reward, done, info = self.action_executor(action)
+    self.set_observation(obsv)
+    self._cumulative_reward+=reward*self._cumulative_discount
+    self._cumulative_discount*=self.reward_discount
+    if done:
+      self.choice_point_handler(None, done = True)
+    self._tmp_return = obsv
+
 
 
   
