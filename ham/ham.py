@@ -1,22 +1,10 @@
 from __future__ import annotations # for forward reference of HAM and type hint
 import copy
-from typing import Tuple, NamedTuple, Type, Any, Callable, Union
+from typing import Tuple, Type, Any, Callable, Union
+from .utils import JointState, Transition
 
-# TODO refactor
 # TODO What if choice machines have different kind of choice returned?
 # TODO HAMQ-INT internal transition skip?
-
-class JointState(NamedTuple):
-  s: Any # Environment pure state
-  m: Any # HAM's machine stack
-
-class Transition(NamedTuple):
-  s_tm1: JointState
-  a_tm1: Any # choice
-  r_t: float # cumulative reward between choice point
-  s_t: JointState
-  done: int # 1 if done, else 0
-
 
 class HAM:
   def __init__(

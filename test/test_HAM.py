@@ -1,6 +1,6 @@
 import unittest
 
-from pyham import HAM
+from pyham.ham import HAM
 from numpy.random import default_rng
 
 
