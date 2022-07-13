@@ -3,6 +3,7 @@ from typing import NamedTuple, Any
 class JointState(NamedTuple):
   s: Any # Environment pure state
   m: Any # HAM's machine stack
+  tau: int # number of timesteps since the previous choice point
 
 class Transition(NamedTuple):
   s_tm1: JointState

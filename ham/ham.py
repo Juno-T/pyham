@@ -1,16 +1,35 @@
 from __future__ import annotations # for forward reference of HAM and type hint
 import copy
 from typing import Tuple, Type, Any, Callable, Union
+import threading
 from .utils import JointState, Transition
+import time
 
 # TODO What if choice machines have different kind of choice returned?
 # TODO HAMQ-INT internal transition skip?
+# TODO Make a machine class instead of dictionary.
+
+class AlternateLock():
+    def __init__(self, initial_thread):
+        self.allow = initial_thread
+        self.cond = threading.Condition()
+        
+    def acquire_for(self, thread):
+        self.cond.acquire()
+        while self.allow!=thread:
+            self.cond.wait()
+    
+    def release_to(self, thread):
+        self.allow=thread
+        self.cond.notifyAll()
+        self.cond.release()
+
 
 class HAM:
+
   def __init__(
     self, 
-    action_executor: Callable[[Any], Tuple], 
-    transition_handler: Callable[[Type[Transition],]], 
+    action_executor: Callable[[Any], Tuple],
     reward_discount: float = 0.9,
     verbose: bool = False
   ):
@@ -18,14 +37,14 @@ class HAM:
       A hierarchical of abstract machine (HAM) class.
       Parameters:
         action_executor: A function that handle action execution. Must return (obsv, reward, done, info). Can be as simple as gym's env.step.
-        transition_handler: A function that handle transition upon new transition is created (when there is a choice point).
     """
     self.action_executor = action_executor
-    self.transition_handler = transition_handler
     self.reward_discount = reward_discount
     self.machines = {}
     self.machine_count=0
     self.verbose =verbose
+
+    self.is_ham_running = False
 
   def set_observation(self, current_observation):
     """
@@ -45,10 +64,16 @@ class HAM:
     self._machine_stack = []
     self._cumulative_reward = 0.
     self._cumulative_discount = 1.
-    self._previous_choice_point = None
+    self._tau = 0
     self._tmp_return = None
-    
-  def _choice_point_handler(self, choice, done=False):
+    self._env_done=False
+    try:
+      self.choice_point_lock.release_to("main")
+    finally:
+      pass
+    self.choice_point_lock=None
+
+  def _choice_point_handler(self, done=False):
     """
       Record choices and create transitions when possible.
       Parameters:
@@ -57,24 +82,15 @@ class HAM:
     """
     joint_state = JointState(
       s=self._current_observation,
-      m=copy.deepcopy(self._machine_stack)
+      m=copy.deepcopy(self._machine_stack),
+      tau = self._tau
     )
-    transition = None
-    if self._previous_choice_point is not None:
-      prev_joint_state, prev_choice = self._previous_choice_point
-      transition = Transition(
-        s_tm1 = prev_joint_state,
-        a_tm1 = prev_choice,
-        r_t = self._cumulative_reward,
-        s_t = joint_state,
-        done = 1 if done else 0
-      )
-    self._previous_choice_point = (joint_state, choice)
-    if transition is not None:
-      self.transition_handler(transition)
+    reward = self._cumulative_reward
+    done = 1 if done else 0
     self._cumulative_reward=0.
     self._cumulative_discount = 1.
-    
+    self._tau=0
+    return joint_state, reward, done, {}
 
   def _add_machine(self, name, machine, representation=None):
     """
@@ -119,17 +135,10 @@ class HAM:
     self._add_machine(machine_name, machine, representation)
     return action_selector
 
-  def learnable_choice_machine(self, selector: Callable[[Type[HAM], Any], Any], representation=None):
-    """
-      A convinent decorator for creating and registering learnable choice machine
-      Parameters:
-        selector: A python function that takes exactly two arguments, HAM and an arbitrary argument. The return must be a choice, in any form.
-        representation: A representation of this machine. Used when pushing to machine stack. A unique integer is used as a default value.
-    """
-    machine_name = selector.__name__
-    machine = self._create_learnable_choice_machine(selector)
+  def choice_machine(self, machine_name, representation=None):
+    machine = self._create_choice_machine(machine_name)
     self._add_machine(machine_name, machine, representation)
-    return selector
+    return machine_name
 
   def _create_functional_machine(self, func: Callable[[Type[HAM], Any], Any]):
     """
@@ -155,18 +164,21 @@ class HAM:
       action = action_selector(self,args)
       self.CALL_action(action)
 
-  def _create_learnable_choice_machine(self, selector: Callable[[Type[HAM], Any], Any]):
+  def _create_choice_machine(self, machine_name):
     """
       Parameters:
         selector: A python function that takes exactly two arguments, HAM and an arbitrary argument. The return must be a choice, in any form.
     """
     if self.verbose:
-      print("Learnable Choice machine initiated")
+      print("Choice machine initiated")
     while True:
       args = yield
-      choice = selector(self, args)
-      self._choice_point_handler(choice)
-      self._tmp_return = choice
+      self.current_choice_machine = machine_name
+      self.choice_point_lock.release_to("main")
+      self.choice_point_lock.acquire_for("ham")
+      # choice = selector(self, args)
+      # self._choice_point_handler(choice)
+      # self._tmp_return = choice
 
   def CALL(self, machine: Union[str, Callable], args=None):
     """
@@ -199,9 +211,74 @@ class HAM:
     self.set_observation(obsv)
     self._cumulative_reward+=reward*self._cumulative_discount
     self._cumulative_discount*=self.reward_discount
+    self._tau+=1
     if done:
-      self._choice_point_handler(None, done = True)
+      self._env_done=True
+      self.choice_point_lock.release_to("main") # will send back to termination check in step()
+
     self._tmp_return = obsv
+
+  def CALL_choice(self, choice_name):
+    self.current_choice_machine = choice_name
+    self.choice_point_lock.release_to("main")
+    self.choice_point_lock.acquire_for("ham")
+    return self._choice
+
+  def _start(self, machine_name, args):
+      self.choice_point_lock.acquire_for("ham")
+      try:
+        self._machine_stack.append(self.machines[machine_name]["representation"])
+        self.machines[machine_name]["machine"].send(args)
+        self._machine_stack.pop()
+      except StopIteration:
+        print("STOP ITERATION??")
+        self._tmp_return = None
+      return self._tmp_return
+
+  def start(self, machine: Union[str, Callable], args=None):
+    if self.is_ham_running:
+      print("HAM already running")
+      return 0
+    
+    if isinstance(machine, str):
+      machine_name = machine
+    else:
+      machine_name = machine.__name__
+    assert(machine_name in self.machines)
+    
+    self.choice_point_lock = AlternateLock("main")
+    self.ham_thread = threading.Thread(target = self._start, args=(machine_name, args))
+    self.choice_point_lock.acquire_for("main")
+    self.ham_thread.start()
+    self.is_ham_running=True
+    print("Starting ham")
+    self.choice_point_lock.release_to("ham")
+    self.choice_point_lock.acquire_for("main")
+    return self._choice_point_handler(done=self._env_done)
+
+  def step(self, choice):
+    if not self.is_ham_running:
+      print("HAM is not running. Try reset and start ham")
+      return None
+    self._choice = choice
+    self.choice_point_lock.release_to("ham")
+    self.choice_point_lock.acquire_for("main")
+    ret = self._choice_point_handler(done=self._env_done)
+    if self._env_done:
+      self._handle_env_done()
+    return ret
+
+  def _handle_env_done(self):
+      self.ham_thread.exit()
+      print("Environment terminated")
+      self.is_ham_running=False
+      self.ham_thread=None
+      try:
+        self.choice_point_lock.release_to("main")
+      finally:
+        pass
+      self.choice_point_lock=None
+
 
 
 
