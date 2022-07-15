@@ -1,30 +1,14 @@
 from __future__ import annotations # for forward reference of HAM and type hint
 import copy
 from typing import Tuple, Type, Any, Callable, Union
-import threading
-from .utils import JointState
 import logging
 import traceback
+import threading
+
+from .utils import JointState, AlternateLock
 
 # TODO What if choice machines have different kind of choice returned?
 # TODO HAMQ-INT internal transition skip?
-# TODO Make a machine class instead of dictionary.
-# TODO handle ham end (no more choice)
-
-class AlternateLock():
-    def __init__(self, initial_thread):
-        self.allow = initial_thread
-        self.cond = threading.Condition()
-        
-    def acquire_for(self, thread):
-        self.cond.acquire()
-        while self.allow!=thread:
-            self.cond.wait()
-    
-    def release_to(self, thread):
-        self.allow=thread
-        self.cond.notifyAll()
-        self.cond.release()
 
 class HAM:
 

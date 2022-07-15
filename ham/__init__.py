@@ -1,2 +1,2 @@
-from .ham import HAM, AlternateLock
+from .ham import HAM
 from . import utils
