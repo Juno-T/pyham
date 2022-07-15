@@ -60,6 +60,7 @@ class HAM:
         current_observation: Initial observation of this episode.
     """
     self._current_observation = current_observation
+    self.current_choice_point_name=None
     self._machine_stack = []
     self._cumulative_reward = 0.
     self._cumulative_discount = 1.
@@ -68,11 +69,16 @@ class HAM:
     self._env_done=False
     try:
       self.terminate()
-      self.choice_point_lock.release_to("main")
+      self._choice_point_lock.release_to("main")
     except:
       pass
-    self.choice_point_lock=None
+    self._choice_point_lock=None
     self.is_alive = False
+
+  def get_info(self):
+    return {
+      "next_choice_point": self.current_choice_point_name
+    }
 
   def _choice_point_handler(self, done=False):
     """
@@ -80,6 +86,12 @@ class HAM:
       Parameters:
         choice: A choice, return of the learnable_choice_machine.
         done: Whether this handler is being called on the episode termination or not.
+      Returns:
+        A 4 items tuple:
+          joint state:
+          cumulative reward:
+          done: Environment done or ham done.
+          info: dictionary with extra info
     """
     joint_state = JointState(
       s=self._current_observation,
@@ -87,17 +99,25 @@ class HAM:
       tau = self._tau
     )
     reward = self._cumulative_reward
-    done = 1 if done else 0
+    done = 1 if done or (not self.is_alive) else 0
     self._cumulative_reward=0.
     self._cumulative_discount = 1.
     self._tau=0
-    return joint_state, reward, done, {}
+    return joint_state, reward, done, self.get_info()
 
-  def machine(self, representation=None):
+  def machine(self, func):
+    """
+      convinent decorator for defining macchine without representation
+    """
+    self.machine_with_repr()(func)
+    return func
+
+  def machine_with_repr(self, representation=None):
+    if representation is None:
+      representation = self.machine_count
+    self.machine_count+=1
+    
     def register_func(func: Callable[[Type(HAM),],Any], representation=representation):
-      if representation is None:
-        representation = self.machine_count
-      self.machine_count+=1
       machine_name = func.__name__
       self.machines[machine_name]={
         "func": func,
@@ -119,6 +139,9 @@ class HAM:
       machine_name = machine
     else:
       machine_name = machine.__name__
+    if not machine_name in self.machines:
+      logging.error(f"{machine_name} machine not registered")
+      return None
     assert(machine_name in self.machines)
     self._machine_stack.append(self.machines[machine_name]["representation"])
     machine_return = None
@@ -150,51 +173,48 @@ class HAM:
     self._tau+=1
     if done:
       self._env_done=True
-      self.choice_point_lock.release_to("main") # will send back to termination check in step()
-      self.choice_point_lock.acquire_for("ham")
+      self._choice_point_lock.release_to("main") # will send back to termination check in step()
+      self._choice_point_lock.acquire_for("ham")
     return obsv, reward, done, info
 
   def CALL_choice(self, choice_point_name):
     if not self.is_alive :
       return 0
-    self.current_choice_machine = choice_point_name
-    self.choice_point_lock.release_to("main")
-    self.choice_point_lock.acquire_for("ham")
+    self.current_choice_point_name = choice_point_name
+    self._choice_point_lock.release_to("main")
+    self._choice_point_lock.acquire_for("ham")
     return self._choice
 
   def _start(self, machine, args):
-      self.choice_point_lock.acquire_for("ham")
+      self._choice_point_lock.acquire_for("ham")
       ham_return = self.CALL(machine, args)
       self.is_alive=False
-      self.choice_point_lock.release_to("main")
+      self._choice_point_lock.release_to("main")
       return ham_return
 
   def start(self, machine: Union[str, Callable], args=[]):
     if self.is_alive:
-      print("HAM is already running")
+      logging.warning("HAM is already running")
       return 0
     
-    self.choice_point_lock = AlternateLock("main")
+    self._choice_point_lock = AlternateLock("main")
     self.ham_thread = threading.Thread(target = self._start, args=(machine, args))
-    self.choice_point_lock.acquire_for("main")
+    self._choice_point_lock.acquire_for("main")
     self.ham_thread.start()
     self.is_alive=True
-    print("Starting ham")
-    self.choice_point_lock.release_to("ham")
-    self.choice_point_lock.acquire_for("main")
+    self._choice_point_lock.release_to("ham")
+    self._choice_point_lock.acquire_for("main")
     return self._choice_point_handler(done=self._env_done)
 
   def step(self, choice):
     if not self.is_alive:
-      print("HAM is not running. Try reset and start ham")
+      logging.warning("HAM is not running. Try restart ham")
       return None
     self._choice = choice
-    self.choice_point_lock.release_to("ham")
-    self.choice_point_lock.acquire_for("main")
-    print("step: main acquired")
+    self._choice_point_lock.release_to("ham")
+    self._choice_point_lock.acquire_for("main")
     machine_state = self._choice_point_handler(done=self._env_done)
     if self._env_done:
-      print("Environment terminated")
       self.terminate()
     return machine_state
 
@@ -203,17 +223,16 @@ class HAM:
       return None
       
     self.is_alive=False
-    self.choice_point_lock.release_to("ham")
-    print("released to ham")
+    self._choice_point_lock.release_to("ham")
     self.ham_thread.join()
-    self.choice_point_lock.acquire_for("main")
+    self._choice_point_lock.acquire_for("main")
 
     self.ham_thread=None
     try:
-      self.choice_point_lock.release_to("main")
+      self._choice_point_lock.release_to("main")
     except:
       pass
-    self.choice_point_lock=None
+    self._choice_point_lock=None
 
 
 
