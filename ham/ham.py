@@ -16,18 +16,17 @@ class HAM:
     self, 
     action_executor: Callable[[Any], Tuple],
     reward_discount: float = 0.9,
-    verbose: bool = False
   ):
     """
       A hierarchical of abstract machine (HAM) class.
       Parameters:
         action_executor: A function that handle action execution. Must return (obsv, reward, done, info). Can be as simple as gym's env.step.
+        reward_discount: Internal reward discount.
     """
     self.action_executor = action_executor
     self.reward_discount = reward_discount
     self.machines = {}
     self.machine_count=0
-    self.verbose =verbose
 
   def set_observation(self, current_observation):
     """
@@ -41,7 +40,7 @@ class HAM:
     """
       Reseting internal values. Must be called before each episode.
       Parameters:
-        current_observation: Initial observation of this episode.
+        current_observation: Initial observation of this episode. i.e. a return from `gym.env.reset()`
     """
     self._current_observation = current_observation
     self.current_choice_point_name=None
@@ -60,22 +59,25 @@ class HAM:
     self.is_alive = False
 
   def get_info(self):
+    """
+      Information to put in info which will be return at each checkpoint
+    """
     return {
       "next_choice_point": self.current_choice_point_name
     }
 
   def _choice_point_handler(self, done=False):
     """
-      Record choices and create transitions when possible.
+      Handling the return tuple at choice point.
       Parameters:
         choice: A choice, return of the learnable_choice_machine.
         done: Whether this handler is being called on the episode termination or not.
       Returns:
         A 4 items tuple:
-          joint state:
-          cumulative reward:
+          joint state:  `JointState` of env state and machine stack at choice point.
+          cumulative reward: Cumulative reward
           done: Environment done or ham done.
-          info: dictionary with extra info
+          info: dictionary with extra info, e.g. info['next_choice_point']
     """
     joint_state = JointState(
       s=self._current_observation,
@@ -89,14 +91,22 @@ class HAM:
     self._tau=0
     return joint_state, reward, done, self.get_info()
 
-  def machine(self, func):
+  def machine(self, func: Callable[[Type(HAM),],Any]):
     """
-      convinent decorator for defining macchine without representation
+      A convinent decorator for registering a machine without representation.
+      Parameters:
+        func: A python function to be registered. 
     """
     self.machine_with_repr()(func)
     return func
 
   def machine_with_repr(self, representation=None):
+    """
+      A decorator to register a machine with representation.
+      Parameters:
+        representation: A representation of the machine to be registered
+        decorated function: A python function to be registered.
+    """
     if representation is None:
       representation = self.machine_count
     self.machine_count+=1
@@ -115,17 +125,24 @@ class HAM:
       A method to CALL a registered machine. This must be used instead of normal python's function calling.
       Parameters:
         machine: Machine's original function or it's function name.
-        args: An argument to pass into the calling machine. Must be list or tuple.
+        args: An argument to pass into the calling machine. Must be a list or tuple.
     """
     if not self.is_alive :
       return 0
+
     if isinstance(machine, str):
       machine_name = machine
     else:
       machine_name = machine.__name__
+
     if not machine_name in self.machines:
       logging.error(f"{machine_name} machine not registered")
       return None
+
+    if (not isinstance(args, list)) and (not isinstance(args, tuple)):
+      logging.error(f"Argument {args} must be list or tuple, not {type(args)}")
+      return None
+    
     assert(machine_name in self.machines)
     self._machine_stack.append(self.machines[machine_name]["representation"])
     machine_return = None
@@ -140,6 +157,7 @@ class HAM:
 
   def CALL_action(self, action):
     """
+      A function to interact with environment given an action.
       Parameters:
         action: An action to be executed with `action_executor`
     """
@@ -162,6 +180,13 @@ class HAM:
     return obsv, reward, done, info
 
   def CALL_choice(self, choice_point_name):
+    """
+      A function to make a choice point in HAMs.
+      Parameters:
+        choice_point_name: choice point name.
+      Return:
+        choice: A choice selected by HAM.step()
+    """
     if not self.is_alive :
       return 0
     self.current_choice_point_name = choice_point_name
@@ -170,16 +195,33 @@ class HAM:
     return self._choice
 
   def _start(self, machine, args):
-      self._choice_point_lock.acquire_for("ham")
-      ham_return = self.CALL(machine, args)
-      self.is_alive=False
-      self._choice_point_lock.release_to("main")
-      return ham_return
+    """
+      HAM thread function.
+      Parameters:
+        machine: Registered machine or its name.
+        args: Argument to the machine
+    """
+    self._choice_point_lock.acquire_for("ham")
+    ham_return = self.CALL(machine, args)
+    self.is_alive=False
+    self._choice_point_lock.release_to("main")
+    return ham_return
 
   def start(self, machine: Union[str, Callable], args=[]):
+    """
+      Start HAMs from specified machine.
+      Parameters:
+        machine: A registered machine or its name. Should be the highest level machine.
+        args: Arguments for the machine. Must be list or tuple
+    """
     if self.is_alive:
       logging.warning("HAM is already running")
       return 0
+    
+    
+    if (not isinstance(args, list)) and (not isinstance(args, tuple)):
+      logging.error(f"Argument {args} must be list or tuple, not {type(args)}")
+      return None
     
     self._choice_point_lock = AlternateLock("main")
     self.ham_thread = threading.Thread(target = self._start, args=(machine, args))
@@ -191,6 +233,17 @@ class HAM:
     return self._choice_point_handler(done=self._env_done)
 
   def step(self, choice):
+    """
+      Iterate the running HAMs giving choice at the choice point.
+      Paremters:
+        choice: A choice to be used by the running HAMs.
+      Return:
+        A 4 items tuple:
+          joint state:  `JointState` of env state and machine stack at choice point.
+          cumulative reward: Cumulative reward
+          done: Environment done or ham done.
+          info: dictionary with extra info, e.g. info['next_choice_point']
+    """
     if not self.is_alive:
       logging.warning("HAM is not running. Try restart ham")
       return None
@@ -203,6 +256,9 @@ class HAM:
     return machine_state
 
   def terminate(self):
+    """
+      Force terminate the HAMs if running.
+    """
     if not self.is_alive:
       return None
       

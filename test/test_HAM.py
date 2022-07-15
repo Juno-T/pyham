@@ -48,13 +48,14 @@ class TestFunctionality(unittest.TestCase):
     self.assertTrue(self.myham._choice_point_lock == None)
     self.assertTrue(self.myham._current_observation=="initial observation")
 
-    self.myham.start(loop_machine)
-    machine_state, reward, done, info = self.myham.step("my choice")
-    self.assertTrue(machine_state.s == "initial observation")
-    self.assertTrue(machine_state.m == [0,1]) # machine stack
-    self.assertTrue(reward == 0)
-    self.assertTrue(done==False)
-    self.assertTrue(info["next_choice_point"] == "m2_choice_point")
+    machine_state, reward, done, info = self.myham.start(loop_machine)
+    if not done:
+      machine_state, reward, done, info = self.myham.step("my choice")
+      self.assertTrue(machine_state.s == "initial observation")
+      self.assertTrue(machine_state.m == [0,1]) # machine stack
+      self.assertTrue(reward == 0)
+      self.assertTrue(done==False)
+      self.assertTrue(info["next_choice_point"] == "m2_choice_point")
     self.myham.terminate()
   
   def test_passing_machine_argument(self):
