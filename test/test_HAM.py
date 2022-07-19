@@ -183,4 +183,25 @@ class TestEdgeCases(unittest.TestCase):
       self.myham.step("action1")
     obsv, rew, done, info = self.myham.step("end_env")
     self.assertTrue(done)
+
+  @pytest.mark.timeout(3)
+  def test_double_reset(self):
+    @self.myham.machine_with_repr(representation="machine1")
+    def m1_func(ham,arg1, arg2):
+        while ham.is_alive:
+            x=ham.CALL_choice("choice_point1")
+            ham.CALL_action(x)
+    
+    self.myham.episodic_reset("initial observation")
+    self.myham.episodic_reset("initial observation")
+    self.assertTrue(True)
+    self.myham.start(m1_func, ("args","args2"))
+    self.myham.episodic_reset("initial observation")
+    self.assertTrue(True)
+    self.myham.start(m1_func, ("args","args2"))
+    for _ in range(10):
+      self.myham.step("action1")
+    self.myham.episodic_reset("initial observation")
+    self.assertTrue(True)
+
     

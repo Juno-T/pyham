@@ -42,6 +42,14 @@ class HAM:
       Parameters:
         current_observation: Initial observation of this episode. i.e. a return from `gym.env.reset()`
     """
+    try:
+      self.terminate()
+      self._choice_point_lock.release_to("main")
+    except:
+      pass
+    self._choice_point_lock=None
+    self.is_alive = False
+
     self._current_observation = current_observation
     self.current_choice_point_name=None
     self._machine_stack = []
@@ -50,13 +58,7 @@ class HAM:
     self._tau = 0
     self._tmp_return = None
     self._env_done=False
-    try:
-      self.terminate()
-      self._choice_point_lock.release_to("main")
-    except:
-      pass
-    self._choice_point_lock=None
-    self.is_alive = False
+    
 
   def get_info(self):
     """
@@ -192,6 +194,8 @@ class HAM:
     self.current_choice_point_name = choice_point_name
     self._choice_point_lock.release_to("main")
     self._choice_point_lock.acquire_for("ham")
+    if not self.is_alive :
+      return 0
     return self._choice
 
   def _start(self, machine, args):
