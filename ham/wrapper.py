@@ -9,7 +9,9 @@ from ham.utils import JointState
 
 
 class WrappedEnv(gym.Env):
-  """Custom Environment that follows gym interface"""
+  """
+    Custom Wrapped Environment which converts HAM into gym-like environment.
+  """
   metadata = {'render_modes': ["rgb_array"]}
 
   def __init__(self, 
@@ -17,45 +19,72 @@ class WrappedEnv(gym.Env):
     env:gym.Env, 
     choice_space: spaces.Space, 
     joint_state_space: spaces.Space,
-    joint_state_to_observation: Callable[[JointState], Any],
+    joint_state_to_representation: Callable[[JointState], Any],
     initial_machine: Union[Callable, str],
-    will_render: bool = False, # If true, pre-render every frames even if `render()` is not called.
+    will_render: bool = False,
   ):
+    """
+      Parameters:
+        ham: Instantiated ham with machines registered
+        env: gym environment to use
+        choice_space: Domain of choices in the registered machines.
+        joint_state_space: Joint state representation space
+        joint_state_to_representation: A function that convert `JointState` to joint state representation accourding to `joint_state_space`
+        initial_machine: The top level machine to start the HAM with.
+        will_render: If true, pre-render every frames even if `render()` is not being called. Must be set to true if `render()` method is expected to be called.
+    """
     super(WrappedEnv, self).__init__()
     self.ham = copy.deepcopy(ham)
     self.env = env
     self.action_space = choice_space
     self.observation_space = joint_state_space
-    self.joint_state_to_observation = joint_state_to_observation
+    self.joint_state_to_representation = joint_state_to_representation
     self.initial_machine = initial_machine
     self.will_render = will_render
     
     if self.will_render:
-      self.ham.action_executor = self.create_wrapped_action_executor()
+      self.ham.action_executor = self._create_wrapped_action_executor()
     else:
       self.ham.action_executor = self.env.step
     self.render_stack = []
 
-  def create_wrapped_action_executor(self):
-    def action_executor(*args, **kwargs):
+  def _create_wrapped_action_executor(self):
+    def _action_executor(*args, **kwargs):
       ret = self.env.step(*args, **kwargs)
       rendered_frame = self.env.render(mode="rgb_array")
       self.render_stack.append(rendered_frame)
       return ret
-    return action_executor
+    return _action_executor
 
   def step(self, choice):
+    """
+      gym-like step api
+      Parameters:
+        choice: choice to be executed at choice point
+      Return:
+        A 4 items tuple:
+          joint state representation: A representation of joint state processed with `joint_state_to_representation`.
+          cumulative reward: Cumulative reward
+          done: Environment done or ham done.
+          info: dictionary with extra info, e.g. info['next_choice_point']
+    """
     assert self.ham.is_alive, "HAMs is not started or has stopped. Try reset env."
     assert self.action_space.contains(choice), "Invalid choice"
 
     self.render_stack=[]
     joint_state, reward, done, info = self.ham.step(choice)
-    observation = self.joint_state_to_observation(joint_state)
-    assert self.observation_space.contains(observation), "Invalid `JointState` to observation conversion."
-    return observation, reward, done, info
+    js_repr = self.joint_state_to_representation(joint_state)
+    assert self.observation_space.contains(js_repr), "Invalid `JointState` to observation conversion."
+    return js_repr, reward, done, info
     
-
   def reset(self, seed:Optional[int]=None):
+    """
+      Reset api. Must be called before each episode.
+      Parameters:
+        seed: seed value
+      Return:
+        Initial joint state representation
+    """
     cur_obsv = self.env.reset(seed=seed)
     self.render_stack = []
     if self.will_render:
@@ -63,15 +92,25 @@ class WrappedEnv(gym.Env):
       self.render_stack.append(rendered_frame)
     self.ham.episodic_reset(cur_obsv)
     joint_state, reward, done, info = self.ham.start(self.initial_machine)
-    obsv = self.joint_state_to_observation(joint_state)
-    assert self.observation_space.contains(obsv), f"Invalid `JointState` to observation conversion."
-    return obsv
+    js_repr = self.joint_state_to_representation(joint_state)
+    assert self.observation_space.contains(js_repr), f"Invalid `JointState` to observation conversion."
+    return js_repr
 
   def render(self, mode="rgb_array"):
+    """
+      Render frames
+      Parameter:
+        mode: only support "rgb_array" for now.
+      Return:
+        A list of rendered frames in numpy array since previous choice point.
+    """
     assert mode in self.metadata["render_modes"], "Invalid rendering mode"
     return self.render_stack
 
   def close(self):
+    """
+      Close environment & terminate ham.
+    """
     try:
       self.env.close()
     except:
@@ -133,7 +172,7 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
   js_space = spaces.Box(np.hstack((og_obsv_low, machine_stack_low)),
                                 np.hstack((og_obsv_high, machine_stack_high)),
                                 dtype = dtype)
-  def js2obsv(js: JointState):
+  def js2repr(js: JointState):
     machine_stack_repr = np.hstack(js.m[-machine_stack_cap:])
     padding = max(0, machine_stack_repr_shape[0]-len(machine_stack_repr))
     machine_stack_repr = np.pad(machine_stack_repr, (padding,0), **np_pad_config)
@@ -143,7 +182,7 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
                     env, 
                     choice_space, 
                     js_space, 
-                    js2obsv, 
+                    js2repr, 
                     initial_machine=initial_machine,
                     will_render=will_render)
   
