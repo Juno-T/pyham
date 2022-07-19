@@ -1,6 +1,6 @@
 from __future__ import annotations # for forward reference of HAM and type hint
 import copy
-from typing import Tuple, Type, Any, Callable, Union
+from typing import Tuple, Type, Any, Callable, Union, Optional
 import logging
 import traceback
 import threading
@@ -14,8 +14,8 @@ class HAM:
 
   def __init__(
     self, 
-    action_executor: Callable[[Any], Tuple],
     reward_discount: float = 0.9,
+    action_executor: Optional[Callable[[Any], Tuple]] = None,
   ):
     """
       A hierarchical of abstract machine (HAM) class.
@@ -218,9 +218,12 @@ class HAM:
       logging.warning("HAM is already running")
       return 0
     
+    if self.action_executor is None:
+      raise("`action_executor` must be defined.")
+      return 0
     
     if (not isinstance(args, list)) and (not isinstance(args, tuple)):
-      logging.error(f"Argument {args} must be list or tuple, not {type(args)}")
+      raise(f"Argument {args} must be list or tuple, not {type(args)}")
       return None
     
     self._choice_point_lock = AlternateLock("main")

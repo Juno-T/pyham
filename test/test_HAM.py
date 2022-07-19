@@ -16,7 +16,7 @@ class TestFunctionality(unittest.TestCase):
     def env_exe(action):
       return "observation", 0.5, action=="end_env", "info"
     discount = 1
-    self.myham = HAM(env_exe, discount)
+    self.myham = HAM(discount, env_exe)
     return super().setUp()
 
   @pytest.mark.timeout(3)
@@ -165,7 +165,7 @@ class TestEdgeCases(unittest.TestCase):
     def env_exe(action):
       return "observation", 0.5, action=="end_env", "info"
     discount = 1
-    self.myham = HAM(env_exe, discount)
+    self.myham = HAM(discount, env_exe)
     return super().setUp()
 
   @pytest.mark.timeout(3)
