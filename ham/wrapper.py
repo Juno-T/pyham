@@ -168,7 +168,6 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
   machine_stack_low = np.zeros(machine_stack_repr_shape[0])
   og_obsv_high = env.observation_space.high
   og_obsv_low = env.observation_space.low
-  choice_space = spaces.Discrete(env.action_space.n)
   js_space = spaces.Box(np.hstack((og_obsv_low, machine_stack_low)),
                                 np.hstack((og_obsv_high, machine_stack_high)),
                                 dtype = dtype)

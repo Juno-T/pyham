@@ -2,6 +2,7 @@ import unittest
 import pytest
 import numpy as np
 import copy
+from numpy.random import default_rng
 
 import gym
 from gym import spaces
@@ -9,7 +10,7 @@ from gym import spaces
 from pyham.ham import HAM, WrappedEnv, create_concat_joint_state_wrapped_env
 from pyham.ham.utils import JointState
 
-class TestFunctionality(unittest.TestCase):
+class TestBasicFunctionality(unittest.TestCase):
   @classmethod
   def setUpClass(cls) -> None:
     return super().setUpClass()
@@ -135,6 +136,48 @@ class TestFunctionality(unittest.TestCase):
     self.test_running(self.wrapped_env)
     
 
+class TestVariousHAMs(unittest.TestCase):
+  @classmethod
+  def setUpClass(cls) -> None:
+    return super().setUpClass()
 
+  def setUp(self) -> None:
+    self.cartpole_env = gym.make("CartPole-v1", new_step_api=False)
+    self.discount = 0.99
+    return super().setUp()
 
-    
+  def testTripleChoice(self):
+    rng = default_rng(42)
+    myham = HAM(self.discount)
+
+    num_machines = 2
+    reprs = np.eye(num_machines) # one-hot representation
+
+    @myham.machine_with_repr(reprs[0])
+    def top_loop(ham):
+      while ham.is_alive:
+        ham.CALL(double_action_machine)
+        
+    @myham.machine_with_repr(reprs[1])
+    def double_action_machine(ham):
+      choice = int(ham.CALL_choice("012"))
+      if choice<2:
+        ham.CALL_action(choice)
+        ham.CALL_action(choice)
+      return 0
+
+    choice_space = spaces.Discrete(3)
+    machine_stack_cap = 3
+    wrapped_env = create_concat_joint_state_wrapped_env(myham, 
+                              self.cartpole_env, 
+                              choice_space, 
+                              initial_machine=top_loop,
+                              np_pad_config = {"constant_values": 0},
+                              machine_stack_cap=machine_stack_cap,
+                              will_render=False)
+    self.assertEqual(wrapped_env.action_space.n, 3)
+    wrapped_env.reset(seed=0)
+    done = False
+    while not done:
+      obsv, reward, done, info = wrapped_env.step(rng.integers(3))
+    self.assertTrue(done)
