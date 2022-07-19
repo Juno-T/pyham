@@ -146,7 +146,7 @@ class TestVariousHAMs(unittest.TestCase):
     self.discount = 0.99
     return super().setUp()
 
-  def testTripleChoice(self):
+  def test_triple_choice(self):
     rng = default_rng(42)
     myham = HAM(self.discount)
 
