@@ -21,6 +21,7 @@ class WrappedEnv(gym.Env):
     joint_state_space: spaces.Space,
     joint_state_to_representation: Callable[[JointState], Any],
     initial_machine: Union[Callable, str],
+    initial_args = [],
     will_render: bool = False,
   ):
     """
@@ -40,6 +41,7 @@ class WrappedEnv(gym.Env):
     self.observation_space = joint_state_space
     self.joint_state_to_representation = joint_state_to_representation
     self.initial_machine = initial_machine
+    self.initial_args = initial_args
     self.will_render = will_render
     
     if self.will_render:
@@ -47,6 +49,23 @@ class WrappedEnv(gym.Env):
     else:
       self.ham.action_executor = self.env.step
     self.render_stack = []
+
+  def set_render_mode(self, mode: bool):
+    """
+      Turn render mode on or off after instantiation.
+      Parameters:
+        mode: `bool` True means on, False means off.
+    """
+    if self.ham.is_alive:
+      raise("Cannot set render mode while HAM is running.")
+      return None
+    self.render_stack=[]
+    if mode==True:
+      self.will_render=True
+      self.ham.action_executor = self._create_wrapped_action_executor()
+    else:
+      self.will_render = False
+      self.ham.action_executor=self.env.step
 
   def _create_wrapped_action_executor(self):
     def _action_executor(*args, **kwargs):
@@ -91,7 +110,7 @@ class WrappedEnv(gym.Env):
       rendered_frame = self.env.render(mode="rgb_array")
       self.render_stack.append(rendered_frame)
     self.ham.episodic_reset(cur_obsv)
-    joint_state, reward, done, info = self.ham.start(self.initial_machine)
+    joint_state, reward, done, info = self.ham.start(self.initial_machine, args=self.initial_args)
     js_repr = self.joint_state_to_representation(joint_state)
     assert self.observation_space.contains(js_repr), f"Invalid `JointState` to observation conversion."
     return js_repr
@@ -126,6 +145,7 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
                                     choice_space: spaces.Space,
                                     initial_machine: Union[Callable, str],
                                     np_pad_config: dict,
+                                    initial_args = [],
                                     machine_stack_cap: int = 1,
                                     dtype=np.float32,
                                     will_render=False
@@ -183,5 +203,6 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
                     js_space, 
                     js2repr, 
                     initial_machine=initial_machine,
+                    initial_args=initial_args,
                     will_render=will_render)
   

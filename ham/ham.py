@@ -27,6 +27,7 @@ class HAM:
     self.reward_discount = reward_discount
     self.machines = {}
     self.machine_count=0
+    self.is_alive=False
 
   def set_observation(self, current_observation):
     """

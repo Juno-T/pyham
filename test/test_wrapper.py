@@ -44,7 +44,7 @@ class TestBasicFunctionality(unittest.TestCase):
                               np_pad_config = {"constant_values": 0},
                               machine_stack_cap=machine_stack_cap,
                               will_render=True)
-    self.wrapped_env_no_render = create_concat_joint_state_wrapped_env(copy.deepcopy(myham), 
+    self.wrapped_env_no_render = create_concat_joint_state_wrapped_env((myham), 
                               cartpole_env, 
                               choice_space, 
                               initial_machine=top_loop,
@@ -133,6 +133,13 @@ class TestBasicFunctionality(unittest.TestCase):
       self.assertEqual(frame.shape, (400, 600, 3))
     
     # also test normal running
+    self.test_running(self.wrapped_env)
+    
+  @pytest.mark.timeout(3)
+  def test_turning_render_mode_on_off(self):
+    self.wrapped_env.set_render_mode(True)
+    self.test_rendering_and_running(self.wrapped_env)
+    self.wrapped_env.set_render_mode(False)
     self.test_running(self.wrapped_env)
     
 
