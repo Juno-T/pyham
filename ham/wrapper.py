@@ -4,8 +4,8 @@ import numpy as np
 import gym
 from gym import spaces
 
-from ham import HAM
-from ham.utils import JointState
+from pyham.ham import HAM
+from pyham.ham.utils import JointState
 
 
 class WrappedEnv(gym.Env):
