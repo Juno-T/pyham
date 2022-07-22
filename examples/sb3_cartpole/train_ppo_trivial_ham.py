@@ -6,7 +6,7 @@ from wandb.integration.sb3 import WandbCallback
   
 
 from pyham.ham import create_concat_joint_state_wrapped_env
-from pyham.examples.utils import process_frames
+from pyham.examples.utils import EvalAndRenderCallback
 
 from machines import create_trivial_cartpole_ham
 
@@ -24,18 +24,6 @@ def make_wrapped_env(config, eval=False):
                             will_render=eval)
   return wrapped_env
 
-def render_play(model, env):
-  env.set_render_mode(True)
-  obs = env.reset()
-  frames = env.render()
-  done=False
-  while not done:
-      action, _states = model.predict(obs)
-      obs, reward, done, info = env.step(action)
-      frames+=env.render()
-  env.set_render_mode(False)
-  return frames
-
 def main():
   config = {
     "internal_discount": 0.95,
@@ -44,6 +32,7 @@ def main():
     "policy_type": "MlpPolicy",
     "total_timesteps": 25000,
     "env_name": "CartPole-v1",
+    "n_eval_episodes": 5,
   }
 
   run = wandb.init(
@@ -52,23 +41,30 @@ def main():
       project="sb3",
       config=config,
       sync_tensorboard=True,
-      # monitor_gym=True,  # auto-upload the videos of agents playing the game
   )
 
   
   wrapped_env = make_wrapped_env(config)
+  wrapped_env_eval = make_wrapped_env(config)
                         
   model = PPO(config['policy_type'], wrapped_env, verbose=1, tensorboard_log=f"runs/{run.id}")
   model.learn(total_timesteps=config['total_timesteps'],
-              callback=WandbCallback(
-                gradient_save_freq=1000,
-                model_save_path=f"models/{run.id}",
-                verbose=2,
-              ),
+              callback=[
+                WandbCallback(
+                  gradient_save_freq=1000,
+                  model_save_path=f"models/{run.id}",
+                  verbose=2,
+                ),
+                EvalAndRenderCallback(
+                  wrapped_env_eval, 
+                  n_eval_episodes=config["n_eval_episodes"], 
+                  eval_freq=1000, 
+                  render_freq=2500
+                ),
+              ],
   )
-  frames = render_play(model, wrapped_env)
-  wandb.log({'Test play': wandb.Video(process_frames(frames), fps=15, format="mp4")})
   wrapped_env.close()
+  wrapped_env_eval.close()
   run.finish()
 
 
