@@ -71,7 +71,7 @@ class EvalAndRenderCallback(BaseCallback):
       while not done:
         action, _states = self.model.predict(obs)
         obs, reward, done, info = self.eval_env.step(action)
-        cumulative_reward+=reward
+        cumulative_reward+=info["actual_reward"]
       rewards.append(cumulative_reward)
       ep_len.append(self.eval_env.actual_ep_len)
     avg_reward = np.mean(rewards)

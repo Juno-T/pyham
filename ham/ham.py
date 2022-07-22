@@ -55,6 +55,7 @@ class HAM:
     self.current_choice_point_name=None
     self._machine_stack = []
     self._cumulative_reward = 0.
+    self._cumulative_actual_reward = 0.
     self._cumulative_discount = 1.
     self._tau = 0
     self._tmp_return = None
@@ -66,7 +67,8 @@ class HAM:
       Information to put in info which will be return at each checkpoint
     """
     return {
-      "next_choice_point": self.current_choice_point_name
+      "next_choice_point": self.current_choice_point_name,
+      "actual_reward": self._cumulative_actual_reward,
     }
 
   def _choice_point_handler(self, done=False):
@@ -89,10 +91,12 @@ class HAM:
     )
     reward = self._cumulative_reward
     done = 1 if done or (not self.is_alive) else 0
+    info = self.get_info()
     self._cumulative_reward=0.
+    self._cumulative_actual_reward = 0.
     self._cumulative_discount = 1.
     self._tau=0
-    return joint_state, reward, done, self.get_info()
+    return joint_state, reward, done, info
 
   def machine(self, func: Callable[[Type(HAM),],Any]):
     """
@@ -174,6 +178,7 @@ class HAM:
       return 0
     self.set_observation(obsv)
     self._cumulative_reward+=reward*self._cumulative_discount
+    self._cumulative_actual_reward += reward
     self._cumulative_discount*=self.reward_discount
     self._tau+=1
     if done:

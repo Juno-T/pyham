@@ -5,9 +5,9 @@ runs/
 .vscode
 log
 wandb
-run.sh
-run_jupyter.sh
-run_array.sh
+run*
+run_jupyter*
+run_array*
 results
 
 # Byte-compiled / optimized / DLL files
