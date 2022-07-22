@@ -57,8 +57,7 @@ class WrappedEnv(gym.Env):
         mode: `bool` True means on, False means off.
     """
     if self.ham.is_alive:
-      raise("Cannot set render mode while HAM is running.")
-      return None
+      self.ham.terminate()
     self.render_stack=[]
     if mode==True:
       self.will_render=True
