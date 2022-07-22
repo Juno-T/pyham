@@ -4,6 +4,8 @@ import numpy as np
 import cv2
 from stable_baselines3.common.callbacks import BaseCallback
 
+from pyham.ham import WrappedEnv
+
 try:
     import wandb
 except ImportError:
@@ -14,7 +16,7 @@ class EvalAndRenderCallback(BaseCallback):
     SB3 Callback for evaluating and rendering an agent.
     wandb is required to see the logs and rendering.
   """
-  def __init__(self, eval_env, n_eval_episodes=5, eval_freq=20, render_freq=2500):
+  def __init__(self, eval_env: WrappedEnv, n_eval_episodes=5, eval_freq=20, render_freq=2500):
     """
       Parameters:
         eval_env: (gym.Env) The environment used for initialization
@@ -32,35 +34,36 @@ class EvalAndRenderCallback(BaseCallback):
     self.best_mean_reward = -np.inf
   
   def _on_step(self):
-    wandb_log_dict = {"trained_step": self.n_calls}
+    new_best = False
+    evaluated = False
     if self.n_calls % self.eval_freq == 0:
-      avg_reward = self.play(episode = self.n_eval_episodes)
-      new_best = False
+      evaluated = True
+      avg_reward, avg_ep_len = self.play(episode = self.n_eval_episodes)
       if avg_reward > self.best_mean_reward:
         new_best = True
         self.best_mean_reward=avg_reward
+        print("New best mean reward: {:.2f}".format(self.best_mean_reward))
       
-      if self.wandb:
-        wandb_log_dict["eval/ep_rew_mean"] = avg_reward
-        if new_best:
-          self.model.save(os.path.join(self.wandb.run.dir, 'models/', 'best.zip'))
-
-      print("Best mean reward: {:.2f}".format(self.best_mean_reward))
-      
-    if self.n_calls % self.render_freq == 0 and self.wandb:
-      frames = self.render_play()
-      wandb_log_dict["eval/render"] = wandb.Video(process_frames(frames), fps=15, format="mp4")
-
     if self.wandb:
-      self.wandb.log(wandb_log_dict)
-    
+      if new_best:
+        self.model.save(os.path.join(self.wandb.run.dir, 'models/', 'best.zip'))
+      
+      wandb_log_dict = {"global_step": self.n_calls}
+      if self.n_calls % self.render_freq == 0:
+        frames = self.render_play()
+        wandb_log_dict["eval/render"] = wandb.Video(process_frames(frames), fps=15, format="mp4")
+      if evaluated:
+        wandb_log_dict["eval/ep_rew_mean"] = avg_reward
+        wandb_log_dict["eval/ep_len_mean"] = avg_ep_len
+      if len(wandb_log_dict.keys())>1: # have something to log
+        self.wandb.log(wandb_log_dict)
 
     return True
 
   def play(self, episode=1):
-    # TODO log ep length
     self.eval_env.set_render_mode(False)
     rewards = []
+    ep_len = []
     for i in range(episode):
       obs = self.eval_env.reset()
       done=False
@@ -70,8 +73,10 @@ class EvalAndRenderCallback(BaseCallback):
         obs, reward, done, info = self.eval_env.step(action)
         cumulative_reward+=reward
       rewards.append(cumulative_reward)
+      ep_len.append(self.eval_env.actual_ep_len)
     avg_reward = np.mean(rewards)
-    return avg_reward
+    avg_ep_len = np.mean(ep_len)
+    return avg_reward, avg_ep_len
 
   def render_play(self):
     self.eval_env.set_render_mode(True)
