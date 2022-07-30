@@ -33,6 +33,10 @@ class HAM:
   def is_alive(self):
     return self._is_alive
 
+  @property
+  def current_observation(self):
+    return self._current_observation
+
   def set_observation(self, current_observation):
     """
       Set current observation.
