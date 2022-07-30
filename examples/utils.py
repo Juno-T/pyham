@@ -16,7 +16,7 @@ class EvalAndRenderCallback(BaseCallback):
     SB3 Callback for evaluating and rendering an agent.
     wandb is required to see the logs and rendering.
   """
-  def __init__(self, eval_env: WrappedEnv, n_eval_episodes=5, eval_freq=20, render_freq=2500):
+  def __init__(self, eval_env: WrappedEnv, n_eval_episodes=5, eval_freq=20, render_freq=2500, fps=15):
     """
       Parameters:
         eval_env: (gym.Env) The environment used for initialization
@@ -29,6 +29,7 @@ class EvalAndRenderCallback(BaseCallback):
     self.n_eval_episodes = n_eval_episodes
     self.eval_freq = eval_freq
     self.render_freq = render_freq
+    self.fps = fps
     self.wandb = wandb
 
     self.best_mean_reward = -np.inf
@@ -51,7 +52,7 @@ class EvalAndRenderCallback(BaseCallback):
       wandb_log_dict = {"global_step": self.n_calls}
       if self.n_calls % self.render_freq == 0:
         frames = self.render_play()
-        wandb_log_dict["eval/render"] = wandb.Video(process_frames(frames), fps=15, format="mp4")
+        wandb_log_dict["eval/render"] = wandb.Video(process_frames(frames), fps=self.fps, format="mp4")
       if evaluated:
         wandb_log_dict["eval/ep_rew_mean"] = avg_reward
         wandb_log_dict["eval/ep_len_mean"] = avg_ep_len
