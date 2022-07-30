@@ -27,7 +27,11 @@ class HAM:
     self.reward_discount = reward_discount
     self.machines = {}
     self.machine_count=0
-    self.is_alive=False
+    self._is_alive=False
+
+  @property
+  def is_alive(self):
+    return self._is_alive
 
   def set_observation(self, current_observation):
     """
@@ -49,7 +53,7 @@ class HAM:
     except:
       pass
     self._choice_point_lock=None
-    self.is_alive = False
+    self._is_alive = False
 
     self._current_observation = current_observation
     self.current_choice_point_name=None
@@ -90,7 +94,7 @@ class HAM:
       tau = self._tau
     )
     reward = self._cumulative_reward
-    done = 1 if done or (not self.is_alive) else 0
+    done = 1 if done or (not self._is_alive) else 0
     info = self.get_info()
     self._cumulative_reward=0.
     self._cumulative_actual_reward = 0.
@@ -134,7 +138,7 @@ class HAM:
         machine: Machine's original function or it's function name.
         args: An argument to pass into the calling machine. Must be a list or tuple.
     """
-    if not self.is_alive :
+    if not self._is_alive :
       return 0
 
     if isinstance(machine, str):
@@ -168,7 +172,7 @@ class HAM:
       Parameters:
         action: An action to be executed with `action_executor`
     """
-    if not self.is_alive :
+    if not self._is_alive :
       return 0
 
     try:
@@ -195,12 +199,12 @@ class HAM:
       Return:
         choice: A choice selected by HAM.step()
     """
-    if not self.is_alive :
+    if not self._is_alive :
       return 0
     self.current_choice_point_name = choice_point_name
     self._choice_point_lock.release_to("main")
     self._choice_point_lock.acquire_for("ham")
-    if not self.is_alive :
+    if not self._is_alive :
       return 0
     return self._choice
 
@@ -213,7 +217,7 @@ class HAM:
     """
     self._choice_point_lock.acquire_for("ham")
     ham_return = self.CALL(machine, args)
-    self.is_alive=False
+    self._is_alive=False
     self._choice_point_lock.release_to("main")
     return ham_return
 
@@ -224,7 +228,7 @@ class HAM:
         machine: A registered machine or its name. Should be the highest level machine.
         args: Arguments for the machine. Must be list or tuple
     """
-    if self.is_alive:
+    if self._is_alive:
       logging.warning("HAM is already running")
       return 0
     
@@ -240,7 +244,7 @@ class HAM:
     self.ham_thread = threading.Thread(target = self._start, args=(machine, args))
     self._choice_point_lock.acquire_for("main")
     self.ham_thread.start()
-    self.is_alive=True
+    self._is_alive=True
     self._choice_point_lock.release_to("ham")
     self._choice_point_lock.acquire_for("main")
     return self._choice_point_handler(done=self._env_done)
@@ -257,7 +261,7 @@ class HAM:
           done: Environment done or ham done.
           info: dictionary with extra info, e.g. info['next_choice_point']
     """
-    if not self.is_alive:
+    if not self._is_alive:
       logging.warning("HAM is not running. Try restart ham")
       return None
     self._choice = choice
@@ -272,10 +276,10 @@ class HAM:
     """
       Force terminate the HAMs if running.
     """
-    if not self.is_alive:
+    if not self._is_alive:
       return None
       
-    self.is_alive=False
+    self._is_alive=False
     self._choice_point_lock.release_to("ham")
     self.ham_thread.join()
     self._choice_point_lock.acquire_for("main")
