@@ -142,6 +142,12 @@ class WrappedEnv(gym.Env):
       except:
         pass
 
+  def seed(self, seed: Optional[int] = None):
+    if seed is None:
+      return
+    self.env.seed(seed)
+
+
 def create_concat_joint_state_wrapped_env(ham: HAM, 
                                     env: gym.Env, 
                                     choice_space: spaces.Space,
