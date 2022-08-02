@@ -59,12 +59,13 @@ def main(config):
               exploration_fraction=config["exploration_fraction"],
               buffer_size=config["buffer_size"],
               verbose=1, 
-              tensorboard_log=f"runs/{run.id}"
+              tensorboard_log=f"runs/{run.id}",
+              seed=config["seed"]
             )
   model.learn(total_timesteps=config['total_timesteps'],
               callback=[
                 WandbCallback(
-                  gradient_save_freq=1000,
+                  gradient_save_freq=config["gradient_save_freq"],
                   model_save_path=f"models/{run.id}",
                   verbose=2,
                 ),
@@ -90,25 +91,31 @@ if __name__=="__main__":
                     nargs='?',
                     choices=['trivial', 'get-put'],
                     help="either trivial or get-put")
+  parser.add_argument('--trial-number', type=int, default=-1,
+                      help='trial number')
   args = parser.parse_args()
 
   config = {
-    "learning_rate": 1e-4,
-    "learning_starts": 10000,
-    "exploration_fraction": 0.9,
+    "learning_rate": 3e-3,
+    "learning_starts": 200000,
+    "exploration_fraction": 0.43,
     "buffer_size": 200000,
-    "eval_freq": 10000,
-    "render_freq": 10000,
+    "eval_freq": 100000,
+    "render_freq": 500000,
+    "gradient_save_freq": 500000,
     "internal_discount": 1,
     "machine_type": None, # "trivial" or "get-put"
     "machine_stack_cap": 1,
     "machine_stack_padding_value": 0,
     "policy_type": "MlpPolicy",
-    "total_timesteps": 100000,
+    "total_timesteps": 1500000,
     "env_name": "Taxi-v3",
     "n_eval_episodes": 5
   }
   config["machine_type"] = str(args.machine)
   if config["machine_type"] == "get-put":
     config["machine_stack_cap"] = 2
+    config["learning_rate"] = 0.002306
+  config["trial_number"] = int(args.trial_number)
+  config["seed"] = config["trial_number"] if config["trial_number"]!=-1 else None
   main(config)

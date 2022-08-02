@@ -10,24 +10,26 @@ parameters:
     max: 3e-2
   exploration_fraction:
     distribution: uniform
-    min: 0.05
+    min: 0.1
     max: 0.95
   learning_starts:
     distribution: int_uniform
-    min: 500
-    max: 50000
+    min: 5000
+    max: 500000
   total_timesteps:
-    value: 100000
+    value: 1000000
   eval_freq:
-    value: 10000
+    value: 50000
   render_freq:
-    value: 100000 # render last only
+    value: 500000
+  gradient_save_freq:
+    value: 500000
 
 command:
   - python3
   - ${program}
   - "--machine"
-  - "get-put"
+  - "trivial"
 
 # wandb sweep --project pyham-example sweep.yaml
 # wandb agent --count 1 <sweepid>
