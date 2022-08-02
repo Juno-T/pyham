@@ -142,6 +142,12 @@ class WrappedEnv(gym.Env):
       except:
         pass
 
+  def seed(self, seed: Optional[int] = None):
+    if seed is None:
+      return
+    self.env.seed(seed)
+
+
 def create_concat_joint_state_wrapped_env(ham: HAM, 
                                     env: gym.Env, 
                                     choice_space: spaces.Space,
@@ -153,7 +159,8 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
                                     will_render=False
                                     ):
   """
-    Currently support only env with continuous observation space.
+    Currently support only env with Box or MultiDiscrete observation space.
+    Machine representations must also be fixed length binary arrays.
 
     Parameters:
       ham: HAM
@@ -169,14 +176,12 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
     Return:
       Wrapped env with joint state representation defined as concatenated numpy array between original env's observation space and fixed length of machine stack representations.
   """
-
   def _obj_len(obj):
     if hasattr(obj, '__len__'):
       return len(obj)
     else:
       return 1
 
-  # num_machines = ham.machine_count
   repr_length = None
   for machine_name, machine in ham.machines.items():
     repr = machine['representation']
@@ -184,12 +189,30 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
       repr_length = _obj_len(repr)
     elif repr_length != _obj_len(repr):
       raise("Unable to create joint state representation due to inconsistent representation length.")
+  
+  build_js_args = (env.observation_space, repr_length, np_pad_config, machine_stack_cap)
+  if isinstance(env.observation_space, spaces.Box):
+    js_space, js2repr = _concat_Box_joint_state(*build_js_args, dtype)
+  elif isinstance(env.observation_space, spaces.MultiDiscrete):
+    js_space, js2repr = _concat_MultiDiscrete_joint_state(*build_js_args)
+  else:
+    raise("Unsupported observation space type.")
+  return WrappedEnv(ham, 
+                    env, 
+                    choice_space, 
+                    js_space, 
+                    js2repr, 
+                    initial_machine=initial_machine,
+                    initial_args=initial_args,
+                    will_render=will_render)
 
+
+def _concat_Box_joint_state(og_space, repr_length, np_pad_config: dict, machine_stack_cap: int, dtype):
   machine_stack_repr_shape = (machine_stack_cap*repr_length,)
   machine_stack_high = np.ones(machine_stack_repr_shape[0])
   machine_stack_low = np.zeros(machine_stack_repr_shape[0])
-  og_obsv_high = env.observation_space.high
-  og_obsv_low = env.observation_space.low
+  og_obsv_high = og_space.high
+  og_obsv_low = og_space.low
   js_space = spaces.Box(np.hstack((og_obsv_low, machine_stack_low)),
                                 np.hstack((og_obsv_high, machine_stack_high)),
                                 dtype = dtype)
@@ -199,12 +222,21 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
     machine_stack_repr = np.pad(machine_stack_repr, (padding,0), **np_pad_config)
     js_repr = np.float32(np.hstack((js.s,machine_stack_repr)))
     return js_repr
-  return WrappedEnv(ham, 
-                    env, 
-                    choice_space, 
-                    js_space, 
-                    js2repr, 
-                    initial_machine=initial_machine,
-                    initial_args=initial_args,
-                    will_render=will_render)
+
+  return js_space, js2repr
   
+def _concat_MultiDiscrete_joint_state(og_space, repr_length, np_pad_config: dict, machine_stack_cap: int):
+  og_nvec = og_space.nvec
+  machine_stack_repr_shape = (machine_stack_cap*repr_length,)
+  machine_stack_nvec = np.int64(np.ones(machine_stack_repr_shape)*2)
+  js_space = spaces.MultiDiscrete(np.hstack((og_nvec, machine_stack_nvec)))
+
+  def js2repr(js: JointState):
+    machine_stack_repr = np.hstack(js.m[-machine_stack_cap:])
+    padding = max(0, machine_stack_repr_shape[0]-len(machine_stack_repr))
+    machine_stack_repr = np.pad(machine_stack_repr, (padding,0), **np_pad_config)
+    js_repr =np.int64(np.hstack((js.s,machine_stack_repr)))
+    return js_repr
+  return js_space, js2repr
+  
+

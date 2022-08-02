@@ -10,7 +10,7 @@ from gym import spaces
 from pyham.ham import HAM, WrappedEnv, create_concat_joint_state_wrapped_env
 from pyham.ham.utils import JointState
 
-class TestBasicFunctionality(unittest.TestCase):
+class TestBoxEnvFunctionality(unittest.TestCase):
   @classmethod
   def setUpClass(cls) -> None:
     return super().setUpClass()
@@ -143,6 +143,54 @@ class TestBasicFunctionality(unittest.TestCase):
     self.test_running(self.wrapped_env)
     
 
+class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
+  @classmethod
+  def setUpClass(cls) -> None:
+    return super().setUpClass()
+
+  def setUp(self) -> None:
+    taxi_env = DecodedMultiDiscreteWrapper(gym.make("Taxi-v3", new_step_api=False), [5,5,5,4])
+    discount = 0.99
+    myham = HAM(discount)
+
+    num_machines = 2
+    reprs = np.eye(num_machines) # one-hot representation
+
+    @myham.machine_with_repr(reprs[0])
+    def top_loop(ham):
+      while ham.is_alive:
+        ham.CALL(nav_machine)
+        
+    @myham.machine_with_repr(reprs[1])
+    def nav_machine(ham):
+      choice = int(ham.CALL_choice("nav"))
+      ham.CALL_action(choice)
+      return 0
+
+    choice_space = spaces.Discrete(taxi_env.action_space.n)
+    machine_stack_cap = 3
+    self.wrapped_env = create_concat_joint_state_wrapped_env(myham, 
+                              taxi_env, 
+                              choice_space, 
+                              initial_machine=top_loop,
+                              np_pad_config = {"constant_values": 0},
+                              machine_stack_cap=machine_stack_cap,
+                              will_render=False)
+    return super().setUp()
+
+  @pytest.mark.timeout(3)
+  def test_running(self, env=None):
+    if env is None:
+      env = self.wrapped_env
+    obsv = env.reset(seed=0)
+    self.assertTrue(np.array_equal(env.observation_space.nvec, np.array([5,5,5,4,2,2,2,2,2,2])))
+    self.assertTrue(env.observation_space.contains(obsv))
+    self.assertTrue(len(obsv)==10)
+    self.assertTrue(np.array_equal(np.array([0,0,1,0,0,1]), obsv[4:]))
+    obsv, reward, done, info = env.step(0)
+    self.assertTrue(np.array_equal(np.array([0,0,1,0,0,1]), obsv[4:]))
+    self.assertTrue(info['next_choice_point'] == "nav")
+
 class TestVariousHAMs(unittest.TestCase):
   @classmethod
   def setUpClass(cls) -> None:
@@ -188,3 +236,16 @@ class TestVariousHAMs(unittest.TestCase):
     while not done:
       obsv, reward, done, info = wrapped_env.step(rng.integers(3))
     self.assertTrue(done)
+
+## AUXILIARY
+
+from typing import Union, List
+
+class DecodedMultiDiscreteWrapper(gym.ObservationWrapper):
+  def __init__(self, env: gym.Env, nvec: Union[List[int], np.ndarray]):
+    super().__init__(env, new_step_api=True)
+    self.obsv_decoder = lambda x: list(env.decode(x))
+    self.observation_space = spaces.MultiDiscrete(nvec)
+
+  def observation(self, observation):
+    return self.obsv_decoder(observation)

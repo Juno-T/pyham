@@ -1,0 +1,35 @@
+program: examples/sb3_taxi/train_dqn.py
+method: 'random'
+metric:
+  name: eval/ep_rew_mean
+  goal: maximize
+parameters:
+  learning_rate:
+    distribution: log_uniform_values
+    min: 1e-4
+    max: 3e-2
+  exploration_fraction:
+    distribution: uniform
+    min: 0.1
+    max: 0.95
+  learning_starts:
+    distribution: int_uniform
+    min: 5000
+    max: 500000
+  total_timesteps:
+    value: 1000000
+  eval_freq:
+    value: 50000
+  render_freq:
+    value: 500000
+  gradient_save_freq:
+    value: 500000
+
+command:
+  - python3
+  - ${program}
+  - "--machine"
+  - "trivial"
+
+# wandb sweep --project pyham-example sweep.yaml
+# wandb agent --count 1 <sweepid>
