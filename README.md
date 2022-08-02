@@ -4,3 +4,16 @@ Hierarchies of Abstract Machine, also known as HAM, is a framework for hierarchi
 
 :construction: The project is still in progress.
 
+## installation
+```
+git clone https://github.com/Juno-T/pyham.git
+export PYTHONPATH=$PWD:$PYTHONPATH
+cd pyham
+pip install -r requirements.txt             // requirements for core ham
+pip install -r examples/requirements.txt    // requirements for running examples
+
+// Try running examples
+wandb login
+python3 examples/sb3_cartpole/train_ppo.py --machine trivial      // can replace trivial with balance-recover
+python3 examples/sb3_taxi/train_dqn.py --machine trivial          // can replace trivial with get-put
+```
