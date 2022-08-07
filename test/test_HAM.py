@@ -16,6 +16,7 @@ class TestFunctionality(unittest.TestCase):
     def env_exe(action):
       return "observation", 0.5, action=="end_env", "info"
     discount = 1
+    self.env_exe = env_exe
     self.myham = HAM(discount, env_exe)
     return super().setUp()
 
@@ -52,7 +53,7 @@ class TestFunctionality(unittest.TestCase):
     if not done:
       machine_state, reward, done, info = self.myham.step("my choice")
       self.assertTrue(machine_state.s == "initial observation")
-      self.assertTrue(machine_state.m == [0,1]) # machine stack
+      self.assertTrue(np.array_equal(machine_state.m, np.array([[1,0],[0,1]]))) # machine stack
       self.assertTrue(reward == 0)
       self.assertTrue(done==False)
       self.assertTrue(info["next_choice_point"] == "m2_choice_point")
@@ -153,6 +154,68 @@ class TestFunctionality(unittest.TestCase):
         break
     self.assertTrue(done)
     self.assertTrue(self.myham.is_alive==False)
+
+  def test_callable_repr(self):
+    numbering = lambda id, total: id
+    myham = HAM(1, self.env_exe, numbering)
+
+    @myham.machine
+    def loop_machine(ham: HAM):
+      for i in range(10):
+        ham.CALL(machine2)
+
+    @myham.machine
+    def machine2(ham: HAM):
+      ham.CALL_choice("m2_choicepoint")
+
+    myham.episodic_reset("initial observation")
+
+    machine_state, reward, done, info = myham.start(loop_machine)
+
+    m_stack = machine_state.m
+    self.assertTrue(np.array_equal(np.stack(m_stack), np.array([0,1])))
+    for i in range(1,10):
+      machine_state, reward, done, info = myham.step("my choice")
+      m_stack = machine_state.m
+      self.assertTrue(np.array_equal(np.stack(m_stack), np.array([0,1])))
+    myham.terminate()
+
+  def test_reassign_machine(self):
+    myham = HAM(1, self.env_exe, "onehot")
+
+    @myham.machine
+    def loop_machine(ham: HAM):
+      for i in range(10):
+        ham.CALL(machine2)
+
+    @myham.machine
+    def machine2(ham: HAM):
+      ham.CALL_choice("m2_choicepoint")
+
+    myham.episodic_reset("initial observation")
+
+    machine_state, reward, done, info = myham.start(loop_machine)
+
+    m_stack = machine_state.m
+    self.assertTrue(np.array_equal(np.stack(m_stack), np.array([[1,0],[0,1]])))
+    for i in range(1,10):
+      machine_state, reward, done, info = myham.step("my choice")
+    myham.terminate()
+
+    @myham.machine
+    def root(ham: HAM):
+      ham.CALL(loop_machine)
+      ham.CALL(loop_machine)
+    
+    machine_state, reward, done, info = myham.start(root)
+    m_stack = machine_state.m
+    self.assertTrue(np.array_equal(np.stack(m_stack), np.array([[0,0,1],[1,0,0],[0,1,0]])))
+    for i in range(1,10):
+      machine_state, reward, done, info = myham.step("my choice")
+      m_stack = machine_state.m
+      self.assertTrue(np.array_equal(np.stack(m_stack), np.array([[0,0,1],[1,0,0],[0,1,0]])))
+    myham.terminate()
+
 
 class TestEdgeCases(unittest.TestCase):
   @classmethod

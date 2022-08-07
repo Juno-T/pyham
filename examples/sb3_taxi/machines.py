@@ -22,6 +22,8 @@ def create_trivial_taxi_ham(discount):
 
 def create_taxi_ham(discount):
   """
+    Creating a Get-Put ham for taxi environment.
+    Here we manually assigning machine's representation using onehot vector as an example, and it is equivalent of using default setting (`representation="onehot"`) when instantiating HAM without overriding representation during machine registration.
   """
   taxi_ham = HAM(discount)
   num_machines = 4
