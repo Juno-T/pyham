@@ -5,7 +5,7 @@ import logging
 import traceback
 import threading
 
-from .utils import JointState, AlternateLock
+from .utils import JointState, AlternateLock, MachineRepresentation
 
 # TODO What if choice machines have different kind of choice returned?
 # TODO HAMQ-INT internal transition skip?
@@ -16,6 +16,7 @@ class HAM:
     self, 
     reward_discount: float = 0.9,
     action_executor: Optional[Callable[[Any], Tuple]] = None,
+    representation: Optional[Union[str, Callable[[int, int], Any]]] = "onehot",
   ):
     """
       A hierarchical of abstract machine (HAM) class.
@@ -25,6 +26,7 @@ class HAM:
     """
     self.action_executor = action_executor
     self.reward_discount = reward_discount
+    self.machine_repr = MachineRepresentation(representation)
     self.machines = {}
     self.machine_count=0
     self._is_alive=False
@@ -108,11 +110,12 @@ class HAM:
 
   def machine(self, func: Callable[[Type(HAM),],Any]):
     """
-      A convinent decorator for registering a machine without representation.
+      A convinent decorator for registering a machine with default machine representation.
       Parameters:
         func: A python function to be registered. 
     """
     self.machine_with_repr()(func)
+    self.machine_repr.reset(self.machine_count)
     return func
 
   def machine_with_repr(self, representation=None):
@@ -122,14 +125,16 @@ class HAM:
         representation: A representation of the machine to be registered
         decorated function: A python function to be registered.
     """
-    if representation is None:
-      representation = self.machine_count
+    # if representation is None:
+    #   representation = self.machine_count
+    id = self.machine_count
     self.machine_count+=1
     
-    def register_func(func: Callable[[Type(HAM),],Any], representation=representation):
+    def register_func(func: Callable[[Type(HAM),],Any], id=id, representation=representation):
       machine_name = func.__name__
       self.machines[machine_name]={
         "func": func,
+        "id": id,
         "representation": representation,
       }
       return func
@@ -159,7 +164,10 @@ class HAM:
       return None
     
     assert(machine_name in self.machines)
-    self._machine_stack.append(self.machines[machine_name]["representation"])
+    m_repr = self.machines[machine_name]["representation"]
+    if m_repr is None:
+      m_repr = self.machine_repr.get_repr(self.machines[machine_name]["id"])
+    self._machine_stack.append(m_repr)
     machine_return = None
     try:
       machine_return = self.machines[machine_name]["func"](self, *args)
