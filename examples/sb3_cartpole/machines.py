@@ -4,12 +4,9 @@ from gym import spaces
 from pyham.ham import HAM
 
 def create_trivial_cartpole_ham(discount):
-  trivial_cartpole_ham = HAM(discount)
+  trivial_cartpole_ham = HAM(discount, representation="onehot")
 
-  num_machines = 1
-  reprs = np.eye(num_machines)
-
-  @trivial_cartpole_ham.machine_with_repr(reprs[0])
+  @trivial_cartpole_ham.machine
   def top_loop(ham):
     while ham.is_alive:
       action = int(ham.CALL_choice("binary action"))
@@ -20,12 +17,9 @@ def create_trivial_cartpole_ham(discount):
   return trivial_cartpole_ham, choice_space, top_loop, []
 
 def create_balance_recover_cartpole_ham(discount):
-  cartpole_ham = HAM(discount)
+  cartpole_ham = HAM(discount, representation="onehot")
 
-  num_machines = 3
-  reprs = np.eye(num_machines)
-
-  @cartpole_ham.machine_with_repr(reprs[0])
+  @cartpole_ham.machine
   def top_loop(ham):
     while ham.is_alive:
       choice = int(ham.CALL_choice("balance-recover")) # 3 choices: 0 & 1 are recovering, 2 is balancing
@@ -34,12 +28,12 @@ def create_balance_recover_cartpole_ham(discount):
       else:
         ham.CALL(recover, args=(choice,))
 
-  @cartpole_ham.machine_with_repr(reprs[1])
+  @cartpole_ham.machine
   def balance(ham):
     ham.CALL_action(0)
     ham.CALL_action(1)
 
-  @cartpole_ham.machine_with_repr(reprs[2])
+  @cartpole_ham.machine
   def recover(ham, action):
     ham.CALL_action(action)
     ham.CALL_action(action)
