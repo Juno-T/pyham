@@ -183,8 +183,8 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
       return 1
 
   repr_length = None
-  for machine_name, machine in ham.machines.items():
-    repr = machine['representation']
+  for machine_name in ham.machines:
+    repr = ham.get_machine_repr(machine_name)
     if repr_length is None:
       repr_length = _obj_len(repr)
     elif repr_length != _obj_len(repr):

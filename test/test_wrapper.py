@@ -237,6 +237,39 @@ class TestVariousHAMs(unittest.TestCase):
       obsv, reward, done, info = wrapped_env.step(rng.integers(3))
     self.assertTrue(done)
 
+  def test_default_repr_ham(self):
+    rng = default_rng(42)
+    myham = HAM(self.discount) # default representation=onehot
+
+    @myham.machine
+    def top_loop(ham):
+      while ham.is_alive:
+        ham.CALL(double_action_machine)
+        
+    @myham.machine
+    def double_action_machine(ham):
+      choice = int(ham.CALL_choice("012"))
+      if choice<2:
+        ham.CALL_action(choice)
+        ham.CALL_action(choice)
+      return 0
+
+    choice_space = spaces.Discrete(3)
+    machine_stack_cap = 3
+    wrapped_env = create_concat_joint_state_wrapped_env(myham, 
+                              self.cartpole_env, 
+                              choice_space, 
+                              initial_machine=top_loop,
+                              np_pad_config = {"constant_values": 0},
+                              machine_stack_cap=machine_stack_cap,
+                              will_render=False)
+    self.assertEqual(wrapped_env.action_space.n, 3)
+    wrapped_env.reset(seed=0)
+    done = False
+    while not done:
+      obsv, reward, done, info = wrapped_env.step(rng.integers(3))
+    self.assertTrue(done)
+
 ## AUXILIARY
 
 from typing import Union, List

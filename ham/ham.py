@@ -39,6 +39,20 @@ class HAM:
   def current_observation(self):
     return self._current_observation
 
+  def get_machine_repr(self, machine_name):
+    """
+      Getting machine representation by name
+      Parameters:
+        machine_name: machine's name
+      Return
+        machine_representation calculated according to self.machine_repr
+    """
+    assert(machine_name in self.machines)
+    repr = self.machines[machine_name]["representation"]
+    if repr is None:
+      repr = self.machine_repr.get_repr(self.machines[machine_name]["id"])
+    return repr
+
   def set_observation(self, current_observation):
     """
       Set current observation.
@@ -162,9 +176,7 @@ class HAM:
       return None
     
     assert(machine_name in self.machines)
-    m_repr = self.machines[machine_name]["representation"]
-    if m_repr is None:
-      m_repr = self.machine_repr.get_repr(self.machines[machine_name]["id"])
+    m_repr = self.get_machine_repr(machine_name)
     self._machine_stack.append(m_repr)
     machine_return = None
     try:
