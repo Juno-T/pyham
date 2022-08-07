@@ -125,8 +125,6 @@ class HAM:
         representation: A representation of the machine to be registered
         decorated function: A python function to be registered.
     """
-    # if representation is None:
-    #   representation = self.machine_count
     id = self.machine_count
     self.machine_count+=1
     
@@ -246,11 +244,9 @@ class HAM:
     
     if self.action_executor is None:
       raise("`action_executor` must be defined.")
-      return 0
     
     if (not isinstance(args, list)) and (not isinstance(args, tuple)):
       raise(f"Argument {args} must be list or tuple, not {type(args)}")
-      return None
     
     self._choice_point_lock = AlternateLock("main")
     self.ham_thread = threading.Thread(target = self._start, args=(machine, args))
