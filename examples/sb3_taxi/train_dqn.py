@@ -102,7 +102,8 @@ if __name__=="__main__":
     "exploration_fraction": 0.43,
     "buffer_size": 200000,
     "eval_freq": 100000,
-    "render_freq": 500000,
+    # "render_freq": 500000, # only works with gym>=0.25.0
+    "render_freq": 5000000, # No render.
     "gradient_save_freq": 500000,
     "internal_discount": 1,
     "machine_type": None, # "trivial" or "get-put"
