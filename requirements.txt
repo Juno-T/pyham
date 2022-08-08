@@ -1,4 +1,6 @@
 numpy==1.23.0
 pytest-timeout==2.1.0
-gym==0.25.0
+gym==0.21.0
 pygame==2.1.0
+pyglet==1.5.11
+pyvirtualdisplay==3.0

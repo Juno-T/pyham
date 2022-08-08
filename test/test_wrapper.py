@@ -16,7 +16,7 @@ class TestBoxEnvFunctionality(unittest.TestCase):
     return super().setUpClass()
 
   def setUp(self) -> None:
-    cartpole_env = gym.make("CartPole-v1", new_step_api=False)
+    cartpole_env = gym.make("CartPole-v1")
     discount = 0.99
     myham = HAM(discount)
 
@@ -55,7 +55,7 @@ class TestBoxEnvFunctionality(unittest.TestCase):
 
   @pytest.mark.timeout(3)
   def test_manual_init(self):
-    cartpole_env = gym.make("CartPole-v1", new_step_api=False)
+    cartpole_env = gym.make("CartPole-v1")
     discount = 0.99
     myham = HAM(discount)
 
@@ -100,6 +100,7 @@ class TestBoxEnvFunctionality(unittest.TestCase):
                               will_render=True)
     self.test_rendering_and_running(wrapped_env)
     self.test_rendering_and_running(wrapped_env)
+    wrapped_env.close()
 
   @pytest.mark.timeout(3)
   def test_running(self, env=None):
@@ -131,9 +132,10 @@ class TestBoxEnvFunctionality(unittest.TestCase):
     self.assertEqual(len(frames), 2)
     for frame in frames:
       self.assertEqual(frame.shape, (400, 600, 3))
-    
+    env.close()
     # also test normal running
-    self.test_running(self.wrapped_env)
+    self.test_running(env)
+    env.close()
     
   @pytest.mark.timeout(3)
   def test_turning_render_mode_on_off(self):
@@ -141,6 +143,7 @@ class TestBoxEnvFunctionality(unittest.TestCase):
     self.test_rendering_and_running(self.wrapped_env)
     self.wrapped_env.set_render_mode(False)
     self.test_running(self.wrapped_env)
+    self.wrapped_env.close()
     
 
 class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
@@ -149,7 +152,7 @@ class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
     return super().setUpClass()
 
   def setUp(self) -> None:
-    taxi_env = DecodedMultiDiscreteWrapper(gym.make("Taxi-v3", new_step_api=False), [5,5,5,4])
+    taxi_env = DecodedMultiDiscreteWrapper(gym.make("Taxi-v3"), [5,5,5,4])
     discount = 0.99
     myham = HAM(discount)
 
@@ -190,6 +193,7 @@ class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
     obsv, reward, done, info = env.step(0)
     self.assertTrue(np.array_equal(np.array([0,0,1,0,0,1]), obsv[4:]))
     self.assertTrue(info['next_choice_point'] == "nav")
+    env.close()
 
 class TestVariousHAMs(unittest.TestCase):
   @classmethod
@@ -197,7 +201,7 @@ class TestVariousHAMs(unittest.TestCase):
     return super().setUpClass()
 
   def setUp(self) -> None:
-    self.cartpole_env = gym.make("CartPole-v1", new_step_api=False)
+    self.cartpole_env = gym.make("CartPole-v1")
     self.discount = 0.99
     return super().setUp()
 
@@ -276,7 +280,7 @@ from typing import Union, List
 
 class DecodedMultiDiscreteWrapper(gym.ObservationWrapper):
   def __init__(self, env: gym.Env, nvec: Union[List[int], np.ndarray]):
-    super().__init__(env, new_step_api=True)
+    super().__init__(env)
     self.obsv_decoder = lambda x: list(env.decode(x))
     self.observation_space = spaces.MultiDiscrete(nvec)
 

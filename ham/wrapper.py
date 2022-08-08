@@ -105,7 +105,11 @@ class WrappedEnv(gym.Env):
       Return:
         Initial joint state representation
     """
-    cur_obsv = self.env.reset(seed=seed)
+    try:
+      cur_obsv = self.env.reset(seed=seed)
+    except:
+      self.env.seed(seed)
+      cur_obsv = self.env.reset()
     self.render_stack = []
     if self.will_render:
       rendered_frame = self.env.render(mode="rgb_array")
