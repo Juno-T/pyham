@@ -3,3 +3,5 @@ stable-baselines3[extra]
 wandb==0.12.21
 moviepy==1.0.3
 imageio==2.19.5
+ray[rllib]
+ray==2.0.0rc0
