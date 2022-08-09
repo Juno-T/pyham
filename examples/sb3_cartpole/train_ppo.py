@@ -35,7 +35,7 @@ def main(config):
 
   run = wandb.init(
       tags=[config["machine_type"],"sb3_cartpole","ppo", "cartpole"],
-      project="pyham-example",
+      project="pyham-sb3-example",
       config=config,
       sync_tensorboard=True,
   )
