@@ -30,7 +30,9 @@ def make_wrapped_env(config: EnvContext):
                             initial_args=initial_args,
                             np_pad_config = {"constant_values": config["machine_stack_padding_value"]},
                             machine_stack_cap=config["machine_stack_cap"],
-                            will_render=eval)
+                            will_render=False
+                            # will_render=eval
+                            )
   return wrapped_env
 
 def main(config):
@@ -39,14 +41,11 @@ def main(config):
       "tags": [config["machine_type"], config["env_name"], "rllib_cartpole", config["algo"]],
       "log_config": False,
       "api_key_file": "~/.wandb_api_key",
+      "group": config["group"],
+
       # Callback args
       "save_checkpoints": config["save_checkpoints"],
   }
-  if config['num_samples']>1:
-    now = datetime.now()
-    wandb_init["group"] = config["env"]+"_"+now.strftime("%b-%d-%Y,%H:%M:%S")
-  else:
-    wandb_init["group"] = None
 
   train_config = {
     "seed": config["seed"],
@@ -75,8 +74,7 @@ def main(config):
     "num_gpus": 0.2,
     "framework": "torch"
   }
-
-  ray.init()
+  ray.init(address='auto')
   tune.run(
     config["algo"],
     stop={"num_env_steps_trained": config["total_timesteps"]},
@@ -88,7 +86,7 @@ def main(config):
     checkpoint_freq=config["evaluation_interval"],
     callbacks=[WandbLoggerCallback(**wandb_init)]
   )
-
+  ray.shutdown()
 
 if __name__=="__main__":
   parser = argparse.ArgumentParser()
@@ -100,6 +98,12 @@ if __name__=="__main__":
                     help="either trivial or balance-recover")
   parser.add_argument('--trial-number', type=int, default=-1,
                       help='trial number')
+  parser.add_argument('--rep', type=int, default=0,
+                      help='replication (ray\'s num_samples')
+  parser.add_argument('--group', type=str, default=None,
+                      help='wandb group')
+  parser.add_argument('--save-checkpoints', type=str, default=False,
+                      help='Save checkpoints')
   parser.add_argument('--hparam-search',
                     action='store_true',
                     default=False,
@@ -111,12 +115,13 @@ if __name__=="__main__":
     # Environment config
     "env_config":{
       "env_name": "CartPole-v1",
-      "machine_type": None, # "trivial" or "balance-recover"
+      "machine_type": str(args.machine), # "balance-recover"
       "machine_stack_cap": 1,
       "machine_stack_padding_value": 0,
       "internal_discount": 1,
     },
     "horizon": 500,
+
     # Agent config
     "algo": "PPO",
     "learning_rate": 1e-4,
@@ -124,22 +129,28 @@ if __name__=="__main__":
     "train_batch_size": 4000, # default
 
     # Experiment config
-    "save_checkpoints": True, # save ckp and upload to wandb
     "total_timesteps": 30000, # 4000 ts/iter
     "evaluation_interval_timesteps": 10000,
     "evaluation_duration": 5, # episodes
-    "num_samples": 1,
+    "num_samples": args.rep if args.rep>0 else 1, # 1
+    
+    # wandb
+    "save_checkpoints": args.save_checkpoints, # False # save ckp and upload to wandb
+    "group": args.group # None
   }
 
-  # handle args
-  config["env_config"]["machine_type"] = str(args.machine)
+  # process args
   config["env"] = f"{config['env_config']['env_name']}_{config['env_config']['machine_type']}"
   config["seed"] = args.trial_number if args.trial_number!=-1 else None
   if args.hparam_search:
     config["learning_rate"] = tune.loguniform(1e-5,1e-2)
     config["train_batch_size"] = tune.lograndint(128, 1024)
-    config["num_samples"] = 10 # number of trials
+    config["num_samples"] = 10 if args.rep<1 else args.rep # number of trials
     config["save_checkpoints"] = False
+
+  if config["num_samples"]>1:
+    now = datetime.now()
+    config["group"] = config["group"] or config["env"]+"_"+now.strftime("%b-%d-%Y,%H.%M.%S")
 
   # post-process config
   try:

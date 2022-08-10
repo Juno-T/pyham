@@ -6,6 +6,7 @@ runs/
 log
 wandb
 run*.sh
+run*.bash
 run_jupyter*
 run_array*
 results
