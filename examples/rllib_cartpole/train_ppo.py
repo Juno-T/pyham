@@ -74,7 +74,10 @@ def main(config):
     "num_gpus": 0.2,
     "framework": "torch"
   }
-  ray.init(address='auto')
+  try:
+    ray.init(address='auto')
+  except:
+    ray.init()
   tune.run(
     config["algo"],
     stop={"num_env_steps_trained": config["total_timesteps"]},
@@ -86,7 +89,6 @@ def main(config):
     checkpoint_freq=config["evaluation_interval"],
     callbacks=[WandbLoggerCallback(**wandb_init)]
   )
-  ray.shutdown()
 
 if __name__=="__main__":
   parser = argparse.ArgumentParser()
