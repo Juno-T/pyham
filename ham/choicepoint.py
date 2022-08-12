@@ -8,7 +8,7 @@ class Choicepoint(NamedTuple):
   name: str
   choice_space: spaces.Space
   discount: float
-  _id: int=-1
+  id: int=-1
 
 class ChoicepointsManager:
   def __init__(self, choicepoints: List[Choicepoint], eval=False):
@@ -21,19 +21,14 @@ class ChoicepointsManager:
       choicepoints_order
       N
     """
-    self.choicepoints = {}
-    self.choicepoints_order = []
-    self.N = 0
+    self.N = len(choicepoints)
+    self.choicepoints_order = [cp.name for cp in choicepoints]
     self.choicepoints = {
-      cp.name: cp
-      for cp in choicepoints
+      cp.name: cp._replace(id=i)
+      for i, cp in enumerate(choicepoints)
     }
-    self.choicepoints_order = list(self.choicepoints.keys())
-    for i, name in enumerate(self.choicepoints_order):
-      self.choicepoints[name]._id = i
 
-    self.N = len(self.choicepoints_order)
-    self.cumulative_rewards = np.zeros((self.N,))
+    # Reward calculation setup
     if eval:
       self.init_discounts = np.ones((self.N,))
     else:
@@ -43,6 +38,9 @@ class ChoicepointsManager:
       ])
 
   def reset(self):
+    """
+      Episodic reset
+    """
     self.discounts = np.ones((self.N,))
     self.cumulative_rewards = np.zeros((self.N,))
 
@@ -52,11 +50,11 @@ class ChoicepointsManager:
     self.discounts*=self.init_discounts
 
   def reset_choicepoint(self, cp_name: str):
-    cp_idx = self.choicepoints[cp_name]._id
+    cp_idx = self.choicepoints[cp_name].id
     
     cp_cumulative_reward = self.cumulative_rewards[cp_idx]
 
-    self.cumulative_reward[cp_idx]=0
+    self.cumulative_rewards[cp_idx]=0
     self.discounts[cp_idx]=1
 
     return cp_cumulative_reward
