@@ -1,6 +1,8 @@
 import unittest
 import pytest
 import numpy as np
+from gym import spaces
+
 from pyham.ham import HAM
 from numpy.random import default_rng
 
@@ -15,13 +17,13 @@ class TestFunctionality(unittest.TestCase):
 
     def env_exe(action):
       return "observation", 0.5, action=="end_env", "info"
-    discount = 1
     self.env_exe = env_exe
-    self.myham = HAM(discount, env_exe)
+    self.myham = HAM(env_exe)
     return super().setUp()
 
   @pytest.mark.timeout(3)
   def test_initialize(self):
+    choicepoint1 = self.myham.choicepoint("choice name", spaces.Discrete(2), 1)
     @self.myham.machine
     def loop_machine(ham: HAM):
       for i in range(10):
@@ -35,6 +37,7 @@ class TestFunctionality(unittest.TestCase):
 
   @pytest.mark.timeout(3)
   def test_simple(self):
+    m2_choice_point = self.myham.choicepoint("m2_choice_point", spaces.Discrete(2), 1)
     @self.myham.machine
     def loop_machine(ham: HAM):
       for i in range(10):
@@ -60,10 +63,11 @@ class TestFunctionality(unittest.TestCase):
     self.myham.terminate()
   
   def test_passing_machine_argument(self):
+    m2_choice_point = self.myham.choicepoint("m2_choice_point", spaces.Discrete(2), 1)
     @self.myham.machine
     def loop_machine(ham: HAM):
       for i in range(10):
-        ham.CALL(machine2, (str(i),))
+        ham.CALL(machine2, (m2_choice_point,))
 
     @self.myham.machine
     def machine2(ham: HAM, cp_name):
@@ -73,13 +77,14 @@ class TestFunctionality(unittest.TestCase):
 
     machine_state, reward, done, info = self.myham.start(loop_machine)
 
-    self.assertTrue(info['next_choice_point']=='0')
+    self.assertTrue(info['next_choice_point']==m2_choice_point.name)
     for i in range(1,10):
       machine_state, reward, done, info = self.myham.step("my choice")
-      self.assertTrue(info["next_choice_point"] == str(i))
+      self.assertTrue(info["next_choice_point"] == m2_choice_point.name)
     self.myham.terminate()
 
   def test_machine_repr(self):
+    m2_choice_point = self.myham.choicepoint("m2_choice_point", spaces.Discrete(2), 1)
     repr = np.eye(2)
     @self.myham.machine_with_repr(representation=repr[0])
     def loop_machine(ham: HAM):
@@ -88,7 +93,7 @@ class TestFunctionality(unittest.TestCase):
 
     @self.myham.machine_with_repr(representation=repr[1])
     def machine2(ham: HAM):
-      ham.CALL_choice("m2_choicepoint")
+      ham.CALL_choice("m2_choice_point")
 
     self.myham.episodic_reset("initial observation")
 
@@ -103,34 +108,36 @@ class TestFunctionality(unittest.TestCase):
     self.myham.terminate()
   
   def test_rep_actions_transitions(self):
+    repetition_choice = self.myham.choicepoint("repetition", spaces.Discrete(10), 1)
     @self.myham.machine
     def loop_machine(ham: HAM):
       for i in range(10):
-        rep = ham.CALL_choice("repetition")
+        rep = ham.CALL_choice(repetition_choice)
         for _ in range(rep):
           ham.CALL_action("action")
 
     self.myham.episodic_reset("initial observation")
 
     machine_state, reward, done, info = self.myham.start(loop_machine)
-    self.assertTrue(info['next_choice_point'] == "repetition")
+    self.assertTrue(info['next_choice_point'] == repetition_choice.name)
     for i in range(10):
       machine_state, reward, done, info = self.myham.step(i)
-      self.assertTrue(info['next_choice_point'] == "repetition")
+      self.assertTrue(info['next_choice_point'] == repetition_choice.name)
       self.assertTrue(machine_state.tau==i)
       self.assertTrue(reward == 0.5*i)
   
   def test_env_end(self):
+    choice = self.myham.choicepoint("choice", spaces.Discrete(10), 1)
     @self.myham.machine
     def loop_machine(ham: HAM):
       while ham.is_alive:
-        action = ham.CALL_choice("action")
+        action = ham.CALL_choice(choice)
         ham.CALL_action(action)
 
     self.myham.episodic_reset("initial observation")
 
     machine_state, reward, done, info = self.myham.start(loop_machine)
-    self.assertTrue(info['next_choice_point'] == "action")
+    self.assertTrue(info['next_choice_point'] == choice.name)
     for i in range(10):
       machine_state, reward, done, info = self.myham.step("action")
     machine_state, reward, done, info = self.myham.step("end_env")
@@ -138,16 +145,17 @@ class TestFunctionality(unittest.TestCase):
     self.assertTrue(self.myham.is_alive==False)
 
   def test_ham_end(self):
+    choice = self.myham.choicepoint("choice", spaces.Discrete(10), 1)
     @self.myham.machine
     def loop_machine(ham: HAM):
       for i in range(5):
-        action = ham.CALL_choice("action")
+        action = ham.CALL_choice(choice)
         ham.CALL_action(action)
 
     self.myham.episodic_reset("initial observation")
 
     machine_state, reward, done, info = self.myham.start(loop_machine)
-    self.assertTrue(info['next_choice_point'] == "action")
+    self.assertTrue(info['next_choice_point'] == choice.name)
     while True:
       machine_state, reward, done, info = self.myham.step("action")
       if done:
@@ -157,8 +165,9 @@ class TestFunctionality(unittest.TestCase):
 
   def test_callable_repr(self):
     numbering = lambda id, total: id
-    myham = HAM(1, self.env_exe, numbering)
+    myham = HAM(self.env_exe, numbering)
 
+    m2_choice_point = myham.choicepoint("m2_choice_point", spaces.Discrete(2), 1)
     @myham.machine
     def loop_machine(ham: HAM):
       for i in range(10):
@@ -166,7 +175,7 @@ class TestFunctionality(unittest.TestCase):
 
     @myham.machine
     def machine2(ham: HAM):
-      ham.CALL_choice("m2_choicepoint")
+      ham.CALL_choice(m2_choice_point)
 
     myham.episodic_reset("initial observation")
 
@@ -181,7 +190,8 @@ class TestFunctionality(unittest.TestCase):
     myham.terminate()
 
   def test_reassign_machine(self):
-    myham = HAM(1, self.env_exe, "onehot")
+    myham = HAM(self.env_exe, "onehot")
+    m2_choice_point = myham.choicepoint("m2_choice_point", spaces.Discrete(2), 1)
 
     @myham.machine
     def loop_machine(ham: HAM):
@@ -190,7 +200,7 @@ class TestFunctionality(unittest.TestCase):
 
     @myham.machine
     def machine2(ham: HAM):
-      ham.CALL_choice("m2_choicepoint")
+      ham.CALL_choice(m2_choice_point)
 
     myham.episodic_reset("initial observation")
 
@@ -227,12 +237,12 @@ class TestEdgeCases(unittest.TestCase):
     
     def env_exe(action):
       return "observation", 0.5, action=="end_env", "info"
-    discount = 1
-    self.myham = HAM(discount, env_exe)
+    self.myham = HAM(env_exe)
     return super().setUp()
 
   @pytest.mark.timeout(3)
   def test_multiple_start1(self):
+    choice_point1 = self.myham.choicepoint("choice_point1", spaces.Discrete(2), 1)
     @self.myham.machine_with_repr(representation="machine1")
     def m1_func(ham, arg1, arg2):
         while ham.is_alive:
@@ -249,10 +259,11 @@ class TestEdgeCases(unittest.TestCase):
 
   @pytest.mark.timeout(3)
   def test_double_reset(self):
+    choice_point1 = self.myham.choicepoint("choice_point1", spaces.Discrete(2), 1)
     @self.myham.machine_with_repr(representation="machine1")
     def m1_func(ham, arg1, arg2):
         while ham.is_alive:
-            x=ham.CALL_choice("choice_point1")
+            x=ham.CALL_choice(choice_point1)
             ham.CALL_action(x)
     
     self.myham.episodic_reset("initial observation")
@@ -267,4 +278,4 @@ class TestEdgeCases(unittest.TestCase):
     self.myham.episodic_reset("initial observation")
     self.assertTrue(True)
 
-    
+# class TestMultiChoicepoint(unittest.TestCase): # TODO
