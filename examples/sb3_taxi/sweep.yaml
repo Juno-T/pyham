@@ -21,7 +21,8 @@ parameters:
   eval_freq:
     value: 50000
   render_freq:
-    value: 500000
+    value: 5000000 # No render
+    # value: 500000 # only works with gym>=0.25.0
   gradient_save_freq:
     value: 500000
 

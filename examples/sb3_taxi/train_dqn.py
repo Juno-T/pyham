@@ -4,6 +4,7 @@ import argparse
 from stable_baselines3 import DQN
 import wandb
 from wandb.integration.sb3 import WandbCallback
+from pyvirtualdisplay import Display
   
 from pyham.ham import create_concat_joint_state_wrapped_env
 from pyham.examples.utils import EvalAndRenderCallback
@@ -13,7 +14,7 @@ from machines import create_taxi_ham, create_trivial_taxi_ham
 
 def make_env(config):
   assert(config["env_name"] == "Taxi-v3")
-  env = gym.make(config["env_name"], new_step_api=False) # Already have time limit = 200
+  env = gym.make(config["env_name"]) # Already have time limit = 200
   env = DecodedMultiDiscreteWrapper(env, [5,5,5,4])
   # env = MultiDiscrete2NormBoxWrapper(env)
   return env
@@ -41,7 +42,7 @@ def main(config):
 
   run = wandb.init(
       tags=[config["machine_type"], "sb3_taxi", "dqn", "taxi"],
-      project="pyham-example",
+      project="pyham-sb3-example",
       config=config,
       sync_tensorboard=True,
   )
@@ -101,7 +102,8 @@ if __name__=="__main__":
     "exploration_fraction": 0.43,
     "buffer_size": 200000,
     "eval_freq": 100000,
-    "render_freq": 500000,
+    # "render_freq": 500000, # only works with gym>=0.25.0
+    "render_freq": 5000000, # No render.
     "gradient_save_freq": 500000,
     "internal_discount": 1,
     "machine_type": None, # "trivial" or "get-put"
@@ -118,4 +120,5 @@ if __name__=="__main__":
     config["learning_rate"] = 0.002306
   config["trial_number"] = int(args.trial_number)
   config["seed"] = config["trial_number"] if config["trial_number"]!=-1 else None
-  main(config)
+  with Display(visible=False, size=(1400, 900)) as disp:
+    main(config)

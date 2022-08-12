@@ -120,7 +120,7 @@ class HAM:
     self._cumulative_actual_reward = 0.
     self._cumulative_discount = 1.
     self._tau=0
-    return joint_state, reward, done, info
+    return joint_state, reward, bool(done), info
 
   def machine(self, func: Callable[[Type(HAM),],Any]):
     """

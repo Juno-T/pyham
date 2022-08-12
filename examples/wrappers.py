@@ -5,7 +5,7 @@ from typing import Union, List
 
 class DecodedMultiDiscreteWrapper(gym.ObservationWrapper):
   def __init__(self, env: gym.Env, nvec: Union[List[int], np.ndarray]):
-    super().__init__(env, new_step_api=True)
+    super().__init__(env)
     self.obsv_decoder = lambda x: list(env.decode(x))
     self.observation_space = spaces.MultiDiscrete(nvec)
 
@@ -14,7 +14,7 @@ class DecodedMultiDiscreteWrapper(gym.ObservationWrapper):
   
 class MultiDiscrete2NormBoxWrapper(gym.ObservationWrapper):
   def __init__(self, env: gym.Env, dtype = np.float64):
-    super().__init__(env, new_step_api=True)
+    super().__init__(env)
     self.sp_range = env.observation_space.nvec
     self.dtype = dtype
     self.mean = self.dtype(self.sp_range-1)/2.

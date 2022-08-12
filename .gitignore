@@ -5,7 +5,8 @@ runs/
 .vscode
 log
 wandb
-run*
+run*.sh
+run*.bash
 run_jupyter*
 run_array*
 results

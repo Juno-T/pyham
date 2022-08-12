@@ -4,6 +4,7 @@ import argparse
 from stable_baselines3 import PPO
 import wandb
 from wandb.integration.sb3 import WandbCallback
+from pyvirtualdisplay import Display
   
 from pyham.ham import create_concat_joint_state_wrapped_env
 from pyham.examples.utils import EvalAndRenderCallback
@@ -11,7 +12,7 @@ from pyham.examples.utils import EvalAndRenderCallback
 from machines import create_trivial_cartpole_ham, create_balance_recover_cartpole_ham
 
 def make_wrapped_env(config, eval=False):
-  original_env = gym.make(config["env_name"], new_step_api=False)
+  original_env = gym.make(config["env_name"])
 
   create_machine = None
   if config["machine_type"]=="trivial":
@@ -34,7 +35,7 @@ def main(config):
 
   run = wandb.init(
       tags=[config["machine_type"],"sb3_cartpole","ppo", "cartpole"],
-      project="pyham-example",
+      project="pyham-sb3-example",
       config=config,
       sync_tensorboard=True,
   )
@@ -85,4 +86,5 @@ if __name__=="__main__":
     "n_eval_episodes": 5,
   }
   config["machine_type"] = str(args.machine)
-  main(config)
+  with Display(visible=False, size=(1400, 900)) as disp:
+    main(config)
