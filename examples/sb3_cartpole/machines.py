@@ -3,8 +3,8 @@ from gym import spaces
 
 from pyham import HAM
 
-def create_trivial_cartpole_ham(discount):
-  trivial_cartpole_ham = HAM(discount, representation="onehot")
+def create_trivial_cartpole_ham():
+  trivial_cartpole_ham = HAM(representation="onehot")
 
   binary_choice = trivial_cartpole_ham.choicepoint("binary_choice", spaces.Discrete(2), discount=1)
   @trivial_cartpole_ham.machine
@@ -15,8 +15,8 @@ def create_trivial_cartpole_ham(discount):
 
   return trivial_cartpole_ham, top_loop, []
 
-def create_balance_recover_cartpole_ham(discount):
-  cartpole_ham = HAM(discount, representation="onehot")
+def create_balance_recover_cartpole_ham():
+  cartpole_ham = HAM(representation="onehot")
 
   balance_recover_choice = cartpole_ham.choicepoint("balance_recover_choice", spaces.Discrete(3), discount=1)
   @cartpole_ham.machine

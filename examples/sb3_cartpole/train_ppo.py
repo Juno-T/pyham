@@ -19,7 +19,7 @@ def make_wrapped_env(config, eval=False):
     create_machine = create_trivial_cartpole_ham
   elif config["machine_type"]=="balance-recover":
     create_machine = create_balance_recover_cartpole_ham
-  ham, initial_machine, initial_args = create_machine(config["internal_discount"])
+  ham, initial_machine, initial_args = create_machine()
 
   wrapped_env = create_concat_joint_state_SingleChoiceTypeEnv(ham, 
                             original_env, 
@@ -76,7 +76,6 @@ if __name__=="__main__":
   args = parser.parse_args()
 
   config = {
-    "internal_discount": 1,
     "machine_type": None, # "trivial" or "balance-recover"
     "machine_stack_cap": 1,
     "machine_stack_padding_value": 0,
