@@ -4,7 +4,7 @@ from gym import spaces
 import numpy as np
 from numpy.random import default_rng
 
-from pyham.ham import Choicepoint, ChoicepointsManager
+from pyham.choicepoint import Choicepoint, ChoicepointsManager
 
 
 class TestFunctionality(unittest.TestCase):

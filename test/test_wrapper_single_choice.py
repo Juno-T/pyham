@@ -7,8 +7,9 @@ from numpy.random import default_rng
 import gym
 from gym import spaces
 
-from pyham.ham import HAM, SingleChoiceTypeEnv, create_concat_joint_state_SingleChoiceTypeEnv
-from pyham.ham.utils import JointState
+from pyham import HAM
+from pyham.wrappers.single_choice import SingleChoiceTypeEnv, create_concat_joint_state_SingleChoiceTypeEnv
+from pyham.utils import JointState
 
 class TestBoxEnvFunctionality(unittest.TestCase):
   @classmethod

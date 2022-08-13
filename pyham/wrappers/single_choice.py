@@ -4,8 +4,8 @@ import numpy as np
 import gym
 from gym import spaces
 
-from pyham.ham import HAM
-from pyham.ham.utils import JointState
+from ..ham import HAM
+from ..utils import JointState
 
 
 class SingleChoiceTypeEnv(gym.Env):

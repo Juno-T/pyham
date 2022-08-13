@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 from gym import spaces
 
-from pyham.ham import HAM
+from pyham import HAM
 from numpy.random import default_rng
 
 
