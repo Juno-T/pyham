@@ -76,7 +76,8 @@ class HAM:
     self._is_alive = False
 
     self._current_observation = current_observation
-    self.current_choice_point_name=None
+    self.current_choicepoint_name = None
+    self.current_choicepoint = None
     self._machine_stack = []
     self._cumulative_actual_reward = 0.
     self._tau = 0
@@ -89,7 +90,7 @@ class HAM:
       Information to put in info which will be return at each checkpoint
     """
     return {
-      "next_choice_point": self.current_choice_point_name,
+      "next_choicepoint_name": self.current_choicepoint.name,
       "actual_reward": self._cumulative_actual_reward,
     }
 
@@ -104,9 +105,9 @@ class HAM:
           joint state:  `JointState` of env state and machine stack at choice point.
           cumulative reward: Cumulative reward
           done: Environment done or ham done.
-          info: dictionary with extra info, e.g. info['next_choice_point']
+          info: dictionary with extra info, e.g. info['next_choicepoint_name']
     """
-    cp_name = self.current_choice_point_name
+    cp_name = self.current_choicepoint.name
     cp_reward, cp_tau = self.cpm.reset_choicepoint(cp_name)
     joint_state = JointState(
       s=self._current_observation,
@@ -226,17 +227,18 @@ class HAM:
     """
       A function to make a choice point in HAMs.
       Parameters:
-        choicepoint: choice point or it's name.
+        choicepoint: a `Choicepoint` or it's name.
       Return:
         choice: A choice selected by HAM.step()
     """
     if not self._is_alive :
       return 0
-    if isinstance(choicepoint, Choicepoint):
-      choice_point_name = choicepoint.name
-    else:
-      choice_point_name = choicepoint
-    self.current_choice_point_name = choice_point_name
+    if isinstance(choicepoint, str):
+      choicepoint = self.cpm.choicepoints.get(choicepoint, None)
+      if choicepoint is None:
+        logging.error(f"Invalid choicepoint name: {choicepoint}")
+        return 0
+    self.current_choicepoint = choicepoint
     self._choice_point_lock.release_to("main")
     self._choice_point_lock.acquire_for("ham")
     if not self._is_alive :
@@ -293,11 +295,18 @@ class HAM:
           joint state:  `JointState` of env state and machine stack at choice point.
           cumulative reward: Cumulative reward
           done: Environment done or ham done.
-          info: dictionary with extra info, e.g. info['next_choice_point']
+          info: dictionary with extra info, e.g. info['next_choicepoint_name']
     """
     if not self._is_alive:
       logging.warning("HAM is not running. Try restart ham")
       return None
+
+    if not self.current_choicepoint.choice_space.contains(choice):
+      self.terminate()
+      raise(
+        f"Invalid choice \'{choice}\' for choicepoint {self.current_choicepoint.name} \
+          with {str(self.current_choicepoint.choice_space)} choice space")
+    
     self._choice = choice
     self._choice_point_lock.release_to("ham")
     self._choice_point_lock.acquire_for("main")
