@@ -8,7 +8,7 @@ from pyham.ham import HAM
 from pyham.ham.utils import JointState
 
 
-class WrappedEnv(gym.Env):
+class SingleChoiceTypeEnv(gym.Env):
   """
     Custom Wrapped Environment which converts HAM into gym-like environment.
   """
@@ -16,12 +16,12 @@ class WrappedEnv(gym.Env):
 
   def __init__(self, 
     ham:HAM, 
-    env:gym.Env, 
-    choice_space: spaces.Space, 
+    env:gym.Env,
     joint_state_space: spaces.Space,
     joint_state_to_representation: Callable[[JointState], Any],
     initial_machine: Union[Callable, str],
     initial_args = [],
+    eval: bool = False,
     will_render: bool = False,
   ):
     """
@@ -34,14 +34,17 @@ class WrappedEnv(gym.Env):
         initial_machine: The top level machine to start the HAM with.
         will_render: If true, pre-render every frames even if `render()` is not being called. Must be set to true if `render()` method is expected to be called.
     """
-    super(WrappedEnv, self).__init__()
+    super(SingleChoiceTypeEnv, self).__init__()
     self.ham = copy.deepcopy(ham)
+    assert(self.ham.cpm.N==1), "This HAM has more than one choicepoint type"
+    self.ham.set_eval(eval)
     self.env = env
-    self.action_space = choice_space
+    self.action_space = self.ham.cpm.choicepoints[self.ham.cpm.choicepoints_order[0]].choice_space
     self.observation_space = joint_state_space
     self.joint_state_to_representation = joint_state_to_representation
     self.initial_machine = initial_machine
     self.initial_args = initial_args
+    self.eval = eval
     self.will_render = will_render
     
     
@@ -152,9 +155,8 @@ class WrappedEnv(gym.Env):
     self.env.seed(seed)
 
 
-def create_concat_joint_state_wrapped_env(ham: HAM, 
-                                    env: gym.Env, 
-                                    choice_space: spaces.Space,
+def create_concat_joint_state_SingleChoiceTypeEnv(ham: HAM, 
+                                    env: gym.Env,
                                     initial_machine: Union[Callable, str],
                                     np_pad_config: dict,
                                     initial_args = [],
@@ -201,14 +203,13 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
     js_space, js2repr = _concat_MultiDiscrete_joint_state(*build_js_args)
   else:
     raise("Unsupported observation space type.")
-  return WrappedEnv(ham, 
-                    env, 
-                    choice_space, 
-                    js_space, 
-                    js2repr, 
-                    initial_machine=initial_machine,
-                    initial_args=initial_args,
-                    will_render=will_render)
+  return SingleChoiceTypeEnv(ham, 
+                              env,
+                              js_space, 
+                              js2repr, 
+                              initial_machine=initial_machine,
+                              initial_args=initial_args,
+                              will_render=will_render)
 
 
 def _concat_Box_joint_state(og_space, repr_length, np_pad_config: dict, machine_stack_cap: int, dtype):

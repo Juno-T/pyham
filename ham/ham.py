@@ -61,6 +61,14 @@ class HAM:
     """
     self._current_observation=current_observation
 
+  def set_eval(self, eval: bool):
+    """
+      Set evaluation mode of HAM.
+      Parameters:
+        eval: Switch HAM's eval mode to `eval`.
+    """
+    self.cpm.set_eval(eval)
+
   def episodic_reset(self, current_observation):
     """
       Reseting internal values. Must be called before each episode.
@@ -159,9 +167,14 @@ class HAM:
     """
       Define choicepoint
     """
+    if self.is_alive:
+      self.terminate()
+      raise("Cannot create choicepoint inside a machine.")
+
     if name in self.cpm.choicepoints_order:
       logging.warn(f"Choice point named {name} is already existed. Ignore new assignment.")
       return 
+
     choicepoint = Choicepoint(name, choice_space, discount)
     self.cpm.add_choicepoint(choicepoint)
     return choicepoint
