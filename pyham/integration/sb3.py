@@ -1,22 +1,24 @@
+try:
+  import stable_baselines3
+  import wandb
+except:
+  raise("Installation needed for sb3 integration.")
+
 import os
 from pathlib import Path
 import numpy as np
 import cv2
+import gym
 from stable_baselines3.common.callbacks import BaseCallback
 
-from pyham.ham import WrappedEnv
-
-try:
-    import wandb
-except ImportError:
-    wandb = None
+from pyham.typing import InducedMDP
 
 class EvalAndRenderCallback(BaseCallback):
   """
     SB3 Callback for evaluating and rendering an agent.
     wandb is required to see the logs and rendering.
   """
-  def __init__(self, eval_env: WrappedEnv, n_eval_episodes=5, eval_freq=20, render_freq=2500, fps=15):
+  def __init__(self, eval_env: InducedMDP, n_eval_episodes=5, eval_freq=20, render_freq=2500, fps=15):
     """
       Parameters:
         eval_env: (gym.Env) The environment used for initialization
@@ -127,3 +129,4 @@ def process_frames(frames, quality = "low"):
   new_frames = np.array(new_frames)
   new_frames = np.transpose(new_frames, (0,3,1,2))
   return new_frames
+

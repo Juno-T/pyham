@@ -44,7 +44,7 @@ class SingleChoiceTypeEnv(gym.Env):
     self.joint_state_to_representation = joint_state_to_representation
     self.initial_machine = initial_machine
     self.initial_args = initial_args
-    self.eval = eval
+    self.eval = eval # TODO
     self.will_render = will_render
     
     
@@ -162,6 +162,7 @@ def create_concat_joint_state_SingleChoiceTypeEnv(ham: HAM,
                                     initial_args = [],
                                     machine_stack_cap: int = 1,
                                     dtype=np.float32,
+                                    eval: bool=False,
                                     will_render=False
                                     ):
   """
@@ -209,6 +210,7 @@ def create_concat_joint_state_SingleChoiceTypeEnv(ham: HAM,
                               js2repr, 
                               initial_machine=initial_machine,
                               initial_args=initial_args,
+                              eval=eval,
                               will_render=will_render)
 
 

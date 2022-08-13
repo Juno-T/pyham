@@ -18,6 +18,7 @@ class HAM:
     self, 
     action_executor: Optional[Callable[[Any], Tuple]] = None,
     representation: Optional[Union[str, Callable[[int, int], Any]]] = "onehot",
+    eval: bool=False
   ):
     """
       A hierarchical of abstract machine (HAM) class.
@@ -26,9 +27,10 @@ class HAM:
     """
     self.action_executor = action_executor
     self.machine_repr = MachineRepresentation(representation)
+    self.eval=eval # TODO
     self.machines = {}
     self.machine_count=0
-    self.cpm = ChoicepointsManager(eval=False) # TODO
+    self.cpm = ChoicepointsManager(eval=eval)
     self._is_alive=False
 
   @property
@@ -67,6 +69,7 @@ class HAM:
       Parameters:
         eval: Switch HAM's eval mode to `eval`.
     """
+    self.eval=eval
     self.cpm.set_eval(eval)
 
   def episodic_reset(self, current_observation):
