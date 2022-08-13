@@ -6,9 +6,9 @@ import wandb
 from wandb.integration.sb3 import WandbCallback
 from pyvirtualdisplay import Display
   
-from pyham.ham import create_concat_joint_state_wrapped_env
-from pyham.examples.utils import EvalAndRenderCallback
-from pyham.examples.wrappers import DecodedMultiDiscreteWrapper, MultiDiscrete2NormBoxWrapper
+from pyham.wrappers.single_choice import create_concat_joint_state_SingleChoiceTypeEnv
+from pyham.integration.sb3 import EvalAndRenderCallback
+from pyham.integration.gym_wrappers import DecodedMultiDiscreteWrapper, MultiDiscrete2NormBoxWrapper
 
 from machines import create_taxi_ham, create_trivial_taxi_ham
 
@@ -26,15 +26,15 @@ def make_wrapped_env(config, eval=False):
     create_machine = create_trivial_taxi_ham
   elif config["machine_type"]=="get-put":
     create_machine = create_taxi_ham
-  ham, choice_space, initial_machine, initial_args = create_machine(config["internal_discount"])
+  ham, initial_machine, initial_args = create_machine()
 
-  wrapped_env = create_concat_joint_state_wrapped_env(ham, 
-                            original_env, 
-                            choice_space, 
+  wrapped_env = create_concat_joint_state_SingleChoiceTypeEnv(ham, 
+                            original_env,
                             initial_machine=initial_machine,
                             initial_args=initial_args,
                             np_pad_config = {"constant_values": config["machine_stack_padding_value"]},
                             machine_stack_cap=config["machine_stack_cap"],
+                            eval=eval,
                             will_render=eval)
   return wrapped_env
 
@@ -105,7 +105,6 @@ if __name__=="__main__":
     # "render_freq": 500000, # only works with gym>=0.25.0
     "render_freq": 5000000, # No render.
     "gradient_save_freq": 500000,
-    "internal_discount": 1,
     "machine_type": None, # "trivial" or "get-put"
     "machine_stack_cap": 1,
     "machine_stack_padding_value": 0,
