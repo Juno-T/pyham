@@ -80,6 +80,7 @@ class HAM:
     self.current_choicepoint = None
     self._machine_stack = []
     self._cumulative_actual_reward = 0.
+    self._actual_reward=0.
     self._tau = 0
     self._tmp_return = None
     self._env_done=False
@@ -91,7 +92,8 @@ class HAM:
     """
     return {
       "next_choicepoint_name": self.current_choicepoint.name,
-      "actual_reward": self._cumulative_actual_reward,
+      "cumulative_reward": self._cumulative_actual_reward,
+      "actual_reward": self._actual_reward,
     }
 
   def _choice_point_handler(self, done=False):
@@ -118,6 +120,7 @@ class HAM:
     # if self.eval: # TODO
     done = done or (not self._is_alive)
     info = self.get_info()
+    self._actual_reward=0.
     # self._cumulative_actual_reward = 0.
     # self._tau=0
     return joint_state, reward, bool(done), info
@@ -216,6 +219,7 @@ class HAM:
     self.set_observation(obsv)
     self.cpm.distribute_reward(reward)
     self._cumulative_actual_reward += reward
+    self._actual_reward += reward
     self._tau+=1
     if done:
       self._env_done=True
@@ -293,9 +297,12 @@ class HAM:
       Return:
         A 4 items tuple:
           joint state:  `JointState` of env state and machine stack at choice point.
-          cumulative reward: Cumulative reward
+          cumulative reward: Cumulative reward of choice point `info['next_choicepoint_name']` since the previous encounter.
           done: Environment done or ham done.
-          info: dictionary with extra info, e.g. info['next_choicepoint_name']
+          info: dictionary with extra info, e.g. 
+            `'next_choicepoint_name'`: Next ChoicePoint's name waiting for `step`
+            `'actual_reward'`: Environment's non-discounted cumulative reward since the previous choicepoint (regardless of choicepoint).
+            `'cumulative_reward'`: Environment's non-discounted cumulative reward since the episode start.
     """
     if not self._is_alive:
       logging.warning("HAM is not running. Try restart ham")

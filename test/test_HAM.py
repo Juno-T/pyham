@@ -330,18 +330,18 @@ class TestMultiChoicepoint(unittest.TestCase):
     cp2 = self.myham.choicepoint("cp2", spaces.Discrete(3), 0.1)
     @self.myham.machine
     def loop_machine(ham: HAM):
-        ham.CALL(machine2)
+      ham.CALL_choice(cp2)
+      ham.CALL(machine2)
+      ham.CALL_choice(cp2)
 
     @self.myham.machine
     def machine2(ham: HAM):
-      ham.CALL_choice(cp2)
       cp1_c = ham.CALL_choice(cp1)
       ham.CALL_action(cp1_c)
       cp1_c = ham.CALL_choice(cp1)
       ham.CALL_action(cp1_c)
       cp1_c = ham.CALL_choice(cp1)
       ham.CALL_action(cp1_c)
-      ham.CALL_choice(cp2)
 
     self.myham.episodic_reset("initial obsv")
     machine_state, reward, done, info = self.myham.start(loop_machine)
