@@ -10,6 +10,7 @@ from gym import spaces
 from pyham import HAM
 from pyham.wrappers.single_choice import SingleChoiceTypeEnv, create_concat_joint_state_SingleChoiceTypeEnv
 from pyham.utils import JointState
+from pyham.integration.gym_wrappers import DecodedMultiDiscreteWrapper
 
 class TestBoxEnvFunctionality(unittest.TestCase):
   @classmethod
@@ -269,16 +270,3 @@ class TestVariousHAMs(unittest.TestCase):
     while not done:
       obsv, reward, done, info = wrapped_env.step(rng.integers(3))
     self.assertTrue(done)
-
-## AUXILIARY
-
-from typing import Union, List
-
-class DecodedMultiDiscreteWrapper(gym.ObservationWrapper):
-  def __init__(self, env: gym.Env, nvec: Union[List[int], np.ndarray]):
-    super().__init__(env)
-    self.obsv_decoder = lambda x: list(env.decode(x))
-    self.observation_space = spaces.MultiDiscrete(nvec)
-
-  def observation(self, observation):
-    return self.obsv_decoder(observation)
