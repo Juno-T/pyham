@@ -1,3 +1,4 @@
+from tokenize import Single
 from typing import Union, Callable, Any
 import numpy as np
 import gym
@@ -6,6 +7,7 @@ from gym import spaces
 from ..ham import HAM
 from ..utils import JointState
 from .single_choice import SingleChoiceTypeEnv
+from .multi_choice import MultiChoiceTypeEnv
 
 def create_concat_joint_state_env(ham: HAM, 
                                   env: gym.Env,
@@ -38,6 +40,14 @@ def create_concat_joint_state_env(ham: HAM,
       Wrapped env with joint state representation defined as concatenated numpy array between original env's observation space and fixed length of machine stack representations.
   """
 
+  if len(ham.cpm)<1:
+    raise("Unable to create env from HAM without choicepoint.")
+
+  if len(ham.cpm)==1:
+    wrapped_env = SingleChoiceTypeEnv
+  else:
+    wrapped_env = MultiChoiceTypeEnv
+
   def _obj_len(obj):
     if hasattr(obj, '__len__'):
       return len(obj)
@@ -59,14 +69,14 @@ def create_concat_joint_state_env(ham: HAM,
     js_space, js2repr = _concat_MultiDiscrete_joint_state(*build_js_args)
   else:
     raise("Unsupported observation space type.")
-  return SingleChoiceTypeEnv(ham, 
-                              env,
-                              js_space, 
-                              js2repr, 
-                              initial_machine=initial_machine,
-                              initial_args=initial_args,
-                              eval=eval,
-                              will_render=will_render)
+  return wrapped_env(ham, 
+                    env,
+                    js_space, 
+                    js2repr, 
+                    initial_machine=initial_machine,
+                    initial_args=initial_args,
+                    eval=eval,
+                    will_render=will_render)
 
 def _concat_Box_joint_state(og_space, repr_length, np_pad_config: dict, machine_stack_cap: int, dtype):
   machine_stack_repr_shape = (machine_stack_cap*repr_length,)

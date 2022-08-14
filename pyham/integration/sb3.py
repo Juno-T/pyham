@@ -11,14 +11,14 @@ import cv2
 import gym
 from stable_baselines3.common.callbacks import BaseCallback
 
-from pyham.utils.types import InducedMDP
+# from pyham.utils.types import InducedMDP # TODO
 
 class EvalAndRenderCallback(BaseCallback):
   """
     SB3 Callback for evaluating and rendering an agent.
     wandb is required to see the logs and rendering.
   """
-  def __init__(self, eval_env: InducedMDP, n_eval_episodes=5, eval_freq=20, render_freq=2500, fps=15):
+  def __init__(self, eval_env, n_eval_episodes=5, eval_freq=20, render_freq=2500, fps=15):
     """
       Parameters:
         eval_env: (gym.Env) The environment used for initialization

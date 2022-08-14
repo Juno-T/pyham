@@ -127,13 +127,17 @@ class HAM:
       m=copy.deepcopy(self._machine_stack),
       tau = cp_tau
     )
+    # TODO: make it into dict instead of duct-taping in MultiChoiceTypeEnv
+    # joint_state = {one chocie point here}
+    # reward = {one choice point here}
+    # if done:
+    #   joint_state = {all chocie point here}
+    #   reward = { all choice point here}
     reward = cp_reward
-    # if self.eval: # TODO
     done = done or (not self._is_alive)
     info = self.get_info()
     self._actual_reward=0.
-    # self._cumulative_actual_reward = 0.
-    # self._tau=0
+    self._tau=0
     return joint_state, reward, bool(done), info
 
   def machine(self, func: Callable[[Type(HAM),],Any]):
@@ -297,7 +301,7 @@ class HAM:
     
     self._choice_point_lock = AlternateLock("main")
     self.cpm.reset()
-    self.ham_thread = threading.Thread(target = self._start, args=(machine, args))
+    self.ham_thread = threading.Thread(target = self._start, args=(machine, args), daemon=True)
     self._choice_point_lock.acquire_for("main")
     self.ham_thread.start()
     self._is_alive=True
