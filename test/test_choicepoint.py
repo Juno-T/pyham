@@ -125,3 +125,7 @@ class TestFunctionality(unittest.TestCase):
     self.assertTrue(self.cpm.reset_choicepoint("cp2")[0]==2)
     self.assertTrue(self.cpm.reset_choicepoint("cp3")[0]==2)
 
+  def test_iter_choicepoint(self):
+    self.assertTrue(len(self.cpm)==3)
+    for i, cp in enumerate(self.cpm):
+      self.assertTrue(cp.name=="cp"+str(i+1))

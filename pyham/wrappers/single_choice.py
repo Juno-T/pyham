@@ -36,10 +36,10 @@ class SingleChoiceTypeEnv(gym.Env):
     """
     super(SingleChoiceTypeEnv, self).__init__()
     self.ham = copy.deepcopy(ham)
-    assert(self.ham.cpm.N==1), "This HAM has more than one choicepoint type"
+    assert(len(self.ham.cpm)==1), "This HAM has more than one choicepoint type"
     self.ham.set_eval(eval)
     self.env = env
-    self.action_space = self.ham.cpm.choicepoints[self.ham.cpm.choicepoints_order[0]].choice_space
+    self.action_space = self.ham.cpm[0].choice_space
     self.observation_space = joint_state_space
     self.joint_state_to_representation = joint_state_to_representation
     self.initial_machine = initial_machine

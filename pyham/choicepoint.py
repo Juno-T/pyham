@@ -79,3 +79,8 @@ class ChoicepointsManager:
 
     return cp_cumulative_reward, cp_tau
   
+  def __len__(self):
+    return self.N
+
+  def __getitem__(self, index):
+    return self.choicepoints[self.choicepoints_order[index]]
