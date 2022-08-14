@@ -11,7 +11,7 @@ import cv2
 import gym
 from stable_baselines3.common.callbacks import BaseCallback
 
-from pyham.typing import InducedMDP
+from pyham.utils.types import InducedMDP
 
 class EvalAndRenderCallback(BaseCallback):
   """

@@ -1,4 +1,4 @@
-from typing import NamedTuple, Any
+from typing import NamedTuple, Any, NewType
 
 class JointState(NamedTuple):
   s: Any # Environment pure state
@@ -11,3 +11,7 @@ class Transition(NamedTuple):
   r_t: float # cumulative reward between choice point
   s_t: JointState
   done: int # 1 if don
+
+from ..wrappers.single_choice import SingleChoiceTypeEnv
+
+InducedMDP = NewType("InducedMDP", SingleChoiceTypeEnv)
