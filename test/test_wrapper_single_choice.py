@@ -43,12 +43,14 @@ class TestBoxEnvFunctionality(unittest.TestCase):
                               initial_machine=top_loop,
                               np_pad_config = {"constant_values": 0},
                               machine_stack_cap=machine_stack_cap,
+                              eval=False,
                               will_render=True)
-    self.wrapped_env_no_render = create_concat_joint_state_SingleChoiceTypeEnv((myham), 
+    self.wrapped_env_no_render = create_concat_joint_state_SingleChoiceTypeEnv(myham, 
                               cartpole_env, 
                               initial_machine=top_loop,
                               np_pad_config = {"constant_values": 0},
                               machine_stack_cap=machine_stack_cap,
+                              eval=False,
                               will_render=False)
     return super().setUp()
 
@@ -143,6 +145,13 @@ class TestBoxEnvFunctionality(unittest.TestCase):
     self.test_running(self.wrapped_env)
     self.wrapped_env.close()
     
+  @pytest.mark.timeout(3)
+  def test_turning_render_mode_on_off(self):
+    self.wrapped_env.set_render_mode(True)
+    self.test_rendering_and_running(self.wrapped_env)
+    self.wrapped_env.set_render_mode(False)
+    self.test_running(self.wrapped_env)
+    self.wrapped_env.close()
 
 class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
   @classmethod
