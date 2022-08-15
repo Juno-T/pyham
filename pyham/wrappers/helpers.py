@@ -20,8 +20,13 @@ def create_concat_joint_state_env(ham: HAM,
                                   will_render=False
                                   ):
   """
+    A helper function to easily create InducedMDP for HAM `ham` and environment `env`.
+    Depends on the number of choicepoints registered in `ham`, `SingleChoiceTypeEnv` or `MultiChoiceTypeEnv` will be instantiated with joint state being the concatenation of `env`'s observation vector and flattened `ham`'s machine stack.
+
+    **
     Currently support only env with Box or MultiDiscrete observation space.
     Machine representations must also be fixed length binary arrays.
+    **
 
     Parameters:
       ham: HAM

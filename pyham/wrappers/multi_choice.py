@@ -36,7 +36,7 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
         joint_state_space: Joint state representation space
         joint_state_to_representation: A function that convert `JointState` to joint state representation accourding to `joint_state_space`
         initial_machine: The top level machine to start the HAM with.
-        eval: whether to instantiate env for evaluation or not.
+        eval: whether to instantiate for evaluation or not. It will affect reward calculation.
         will_render: If true, pre-render every frames even if `render()` is not being called. Must be set to true if `render()` method is expected to be called.
     """
     super().__init__()

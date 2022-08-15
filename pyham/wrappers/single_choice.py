@@ -32,7 +32,7 @@ class SingleChoiceTypeEnv(gym.Env):
         joint_state_space: Joint state representation space
         joint_state_to_representation: A function that convert `JointState` to joint state representation accourding to `joint_state_space`
         initial_machine: The top level machine to start the HAM with.
-        eval: whether to instantiate env for evaluation or not.
+        eval: whether to instantiate for evaluation or not. It will affect reward calculation.
         will_render: If true, pre-render every frames even if `render()` is not being called. Must be set to true if `render()` method is expected to be called.
     """
     super(SingleChoiceTypeEnv, self).__init__()
@@ -170,8 +170,12 @@ def create_concat_joint_state_SingleChoiceTypeEnv(ham: HAM,
                                     will_render=False
                                     ):
   """
+    Deprecated, unifying into one function: pyham.wrappers.helpers.create_concat_joint_state_env
+
+    **
     Currently support only env with Box or MultiDiscrete observation space.
     Machine representations must also be fixed length binary arrays.
+    **
 
     Parameters:
       ham: HAM

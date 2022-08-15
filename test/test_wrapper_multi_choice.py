@@ -172,6 +172,8 @@ class TestBoxEnvFunctionality(unittest.TestCase):
     self.assertTrue("cp1" in reward)
     self.assertTrue("cp2" in obsv)
     self.assertTrue("cp2" in reward)
+    self.assertTrue(reward["cp1"]==1)
+    self.assertTrue(reward["cp2"]==1)
     self.assertTrue(done["__all__"])
     
 

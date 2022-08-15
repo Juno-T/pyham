@@ -2,23 +2,24 @@ from typing import List, NamedTuple
 from gym import spaces
 import numpy as np
 
-
 class Choicepoint(NamedTuple):
   name: str
   choice_space: spaces.Space
   discount: float
-  id: int=-1
+  id: int=-1 # Assign and use by ChoicepointManager.
 
 class ChoicepointsManager:
   def __init__(self, eval=False):
     """
-    Parameters:
-      choicepoints
-      eval: if `True`, ignore all choicepoint's discount.
-    Attrubutes:
-      choicepoints
-      choicepoints_order
-      N
+      `ChoicepointManager` handles and vectorized operations on choicepoints in a HAM. 
+
+      Parameters:
+        choicepoints
+        eval: if `True`, ignore all choicepoint's discount.
+      Attrubutes:
+        choicepoints
+        choicepoints_order
+        N
     """
     self.N = 0
     self.choicepoints_order = []
@@ -37,6 +38,10 @@ class ChoicepointsManager:
 
   def add_choicepoint(self, choicepoint: Choicepoint):
     """
+      Add new choicepoint to the choicepoint manager.
+      The choicepoint's id will be re-assigned according to internal indexing.
+      Parameters:
+        choicepoint: predefined choicepoint to be added
     """
     assert(not choicepoint.name in self.choicepoints_order)
     choicepoint = choicepoint._replace(id=self.N)

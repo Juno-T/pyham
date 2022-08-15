@@ -25,7 +25,7 @@ class HAM:
     """
     self.action_executor = action_executor
     self.machine_repr = MachineRepresentation(representation)
-    self.eval=eval # TODO
+    self.eval=eval
     self.machines = {}
     self.machine_count=0
     self.cpm = ChoicepointsManager(eval=eval)
@@ -118,8 +118,8 @@ class HAM:
         done: Whether this handler is being called on the episode termination or not.
       Returns:
         A 4 items tuple:
-          joint state:  `JointState` of env state and machine stack at choice point.
-          cumulative reward: Cumulative reward
+          joint state: Dictionary (keys=choicepoints) of `JointState` of env state and machine stack at choice point.
+          cumulative reward: Dictionary (keys=choicepoints) of cumulative reward
           done: Environment done or ham done.
           info: dictionary with extra info, e.g. info['next_choicepoint_name']
     """
@@ -329,13 +329,14 @@ class HAM:
         choice: A choice to be used by the running HAMs.
       Return:
         A 4 items tuple:
-          joint state:  `JointState` of env state and machine stack at choice point.
-          cumulative reward: Cumulative reward of choice point `info['next_choicepoint_name']` since the previous encounter.
+          joint_state: Dictionary (keys=choicepoints) of `JointState` of env state and machine stack at choice point.
+          cumulative_reward: Dictionary (keys=choicepoints) of cumulative reward of choice point `info['next_choicepoint_name']` since the previous encounter.
           done: Environment done or ham done.
           info: dictionary with extra info, e.g. 
             `'next_choicepoint_name'`: Next ChoicePoint's name waiting for `step`
             `'actual_reward'`: Environment's non-discounted cumulative reward since the previous choicepoint (regardless of choicepoint).
             `'cumulative_reward'`: Environment's non-discounted cumulative reward since the episode start.
+        At the last step of the episode (either env ends or HAM is done), `joint_state` and `cumulative_reward` will contains all the choicepoints.
     """
     if not self._is_alive:
       logging.warning("HAM is not running. Try restart ham")
