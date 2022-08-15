@@ -188,13 +188,13 @@ class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
     num_machines = 2
     reprs = np.eye(num_machines) # one-hot representation
 
-    rep = myham.choicepoint("rep", spaces.Discrete(3), discount = 0.1)
+    replication = myham.choicepoint("replication", spaces.Discrete(3), discount = 0.1)
     nav = myham.choicepoint("nav", spaces.Discrete(4), discount = 0.99)
 
     @myham.machine_with_repr(reprs[0])
     def top_loop(ham):
       while ham.is_alive:
-        rep = ham.CALL_choice(rep)
+        rep = ham.CALL_choice(replication)
         ham.CALL(nav_machine, (rep,))
         
     @myham.machine_with_repr(reprs[1])
@@ -219,13 +219,12 @@ class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
       env = self.wrapped_env
     obsv = env.reset(seed=0)
     self.assertTrue(np.array_equal(env.observation_space.nvec, np.array([5,5,5,4,2,2,2,2,2,2])))
-    self.assertTrue(env.observation_space.contains(obsv))
-    self.assertTrue(len(obsv)==10)
-    self.assertTrue(np.array_equal(np.array([0,0,0,0,1,0]), obsv[4:]))
-    self.assertTrue(info['next_choicepoint_name'] == "rep")
+    self.assertTrue(env.observation_space.contains(obsv["replication"]))
+    self.assertTrue(len(obsv["replication"])==10)
+    self.assertTrue(np.array_equal(np.array([0,0,0,0,1,0]), obsv["replication"][4:]))
     obsv, reward, done, info = env.step(1)
-    self.assertTrue(np.array_equal(np.array([0,0,1,0,0,1]), obsv[4:]))
+    self.assertTrue(np.array_equal(np.array([0,0,1,0,0,1]), obsv["nav"][4:]))
     self.assertTrue(info['next_choicepoint_name'] == "nav")
     obsv, reward, done, info = env.step(0)
-    self.assertTrue(np.array_equal(np.array([0,0,1,0,0,1]), obsv[4:]))
+    self.assertTrue(np.array_equal(np.array([0,0,0,0,1,0]), obsv["replication"][4:]))
     env.close()

@@ -3,6 +3,7 @@ import copy
 import numpy as np
 import gym
 from gym import spaces
+import logging
 
 from ..ham import HAM
 from ..utils import JointState, deprecated
@@ -96,7 +97,7 @@ class SingleChoiceTypeEnv(gym.Env):
 
     self.render_stack=[]
     joint_state, reward, done, info = self.ham.step(choice)
-    self.actual_ep_len += joint_state[self.cp_name].tau
+    self.actual_ep_len += info["actual_tau"]
     js_repr = self.joint_state_to_representation(joint_state[self.cp_name])
     assert self.observation_space.contains(js_repr), "Invalid `JointState` to observation conversion."
     return js_repr, reward[self.cp_name], done, info
@@ -120,6 +121,8 @@ class SingleChoiceTypeEnv(gym.Env):
       self.render_stack.append(rendered_frame)
     self.ham.episodic_reset(cur_obsv)
     joint_state, reward, done, info = self.ham.start(self.initial_machine, args=self.initial_args)
+    if joint_state=={}:
+      logging.warning("\nHAM or env ends immediately. Try including choicepoint in HAM or otherwise, try new seed.")
     self.actual_ep_len = joint_state[self.cp_name].tau
     js_repr = self.joint_state_to_representation(joint_state[self.cp_name])
     assert self.observation_space.contains(js_repr), f"Invalid `JointState` to observation conversion."

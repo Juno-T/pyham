@@ -7,6 +7,7 @@ from typing import Optional, Union, Callable, Any, Dict
 import copy
 import gym
 from gym import spaces
+import logging
 
 from ..ham import HAM
 from ..utils import JointState
@@ -46,7 +47,7 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
     self.joint_state_to_representation = joint_state_to_representation
     self.initial_machine = initial_machine
     self.initial_args = initial_args
-    self.eval = eval # TODO
+    self.eval = eval
     self.will_render = will_render
 
     self._all_not_done = {
@@ -106,17 +107,14 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
     assert self.ham.is_alive, "HAMs is not started or has stopped. Try reset env."
 
     self.render_stack=[]
-    joint_state, reward, done, info = self.ham.step(choice)
-    self.actual_ep_len += self.ham._tau
-    next_choicepoint_name = info["next_choicepoint_name"]
-    if done:
-      obsv, reward = self.create_last_step(next_choicepoint_name, joint_state, reward)
-    else:
-      js_repr = self.joint_state_to_representation(joint_state)
-      obsv = {next_choicepoint_name: js_repr}
-      reward = {next_choicepoint_name: reward}
+    joint_states, rewards, done, info = self.ham.step(choice)
+    self.actual_ep_len += info["actual_tau"]
+    js_reprs = {
+      cp_name: self.joint_state_to_representation(joint_state)
+      for cp_name, joint_state in joint_states.items()
+    }
     done = self._all_done if done else self._all_not_done
-    return obsv, reward, done, info
+    return js_reprs, rewards, done, info
     
   def reset(self, seed:Optional[int]=None):
     """
@@ -136,13 +134,17 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
       rendered_frame = self.env.render(mode="rgb_array")
       self.render_stack.append(rendered_frame)
     self.ham.episodic_reset(cur_obsv)
-    joint_state, reward, done, info = self.ham.start(self.initial_machine, args=self.initial_args)
-    self.actual_ep_len = joint_state.tau
-    js_repr = self.joint_state_to_representation(joint_state)
-    assert self.observation_space.contains(js_repr), f"Invalid `JointState` to observation conversion."
-    return {
-      info["next_choicepoint_name"]: js_repr
+    joint_states, rewards, done, info = self.ham.start(self.initial_machine, args=self.initial_args)
+    if joint_states=={}:
+      logging.warning("HAM or env ends immediately. Try including choicepoint in HAM or otherwise, try new seed.")
+    self.actual_ep_len = info["actual_tau"]
+    js_reprs = {
+      cp_name: self.joint_state_to_representation(joint_state)
+      for cp_name, joint_state in joint_states.items()
     }
+    for _, js_repr in js_reprs.items():
+      assert self.observation_space.contains(js_repr), f"Invalid `JointState` to observation conversion."
+    return js_reprs
 
   def render(self, mode="rgb_array"):
     """
@@ -173,23 +175,6 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
     if seed is None:
       return
     self.env.seed(seed)
-
-  # DUCKTAPE # TODO move this to HAM
-  def create_last_step(self, next_choicepoint_name, joint_state, reward):
-    joint_states = {
-      cp.name: self.joint_state_to_representation(
-        joint_state._replace(tau=self.ham.cpm.tau[i])
-      )
-      for i, cp in enumerate(self.ham.cpm)
-    }
-    joint_states[next_choicepoint_name]=self.joint_state_to_representation(joint_state)
-
-    rewards = {
-      cp.name: self.ham.cpm.cumulative_rewards[i]
-      for i, cp in enumerate(self.ham.cpm)
-    }
-    rewards[next_choicepoint_name]=reward
-    return joint_states, rewards
 
   def rllib_policies_config(self) -> Dict[str, Dict[str, Any]]:
     """

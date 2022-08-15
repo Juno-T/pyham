@@ -107,6 +107,7 @@ class HAM:
       "next_choicepoint_name": cp_name,
       "cumulative_reward": self._cumulative_actual_reward,
       "actual_reward": self._actual_reward,
+      "actual_tau": self._tau
     }
 
   def _choice_point_handler(self, done=False):

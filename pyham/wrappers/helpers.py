@@ -88,7 +88,10 @@ def _concat_Box_joint_state(og_space, repr_length, np_pad_config: dict, machine_
                                 np.hstack((og_obsv_high, machine_stack_high)),
                                 dtype = dtype)
   def js2repr(js: JointState):
-    machine_stack_repr = np.hstack(js.m[-machine_stack_cap:])
+    if len(js.m)==0:
+      machine_stack_repr = np.array([])
+    else:
+      machine_stack_repr = np.hstack(js.m[-machine_stack_cap:])
     padding = max(0, machine_stack_repr_shape[0]-len(machine_stack_repr))
     machine_stack_repr = np.pad(machine_stack_repr, (padding,0), **np_pad_config)
     js_repr = np.float32(np.hstack((js.s,machine_stack_repr)))
@@ -103,7 +106,10 @@ def _concat_MultiDiscrete_joint_state(og_space, repr_length, np_pad_config: dict
   js_space = spaces.MultiDiscrete(np.hstack((og_nvec, machine_stack_nvec)))
 
   def js2repr(js: JointState):
-    machine_stack_repr = np.hstack(js.m[-machine_stack_cap:])
+    if len(js.m)==0:
+      machine_stack_repr = np.array([])
+    else:
+      machine_stack_repr = np.hstack(js.m[-machine_stack_cap:])
     padding = max(0, machine_stack_repr_shape[0]-len(machine_stack_repr))
     machine_stack_repr = np.pad(machine_stack_repr, (padding,0), **np_pad_config)
     js_repr =np.int64(np.hstack((js.s,machine_stack_repr)))
