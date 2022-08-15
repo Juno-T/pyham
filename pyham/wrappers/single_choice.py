@@ -40,11 +40,12 @@ class SingleChoiceTypeEnv(gym.Env):
     self.ham.set_eval(eval)
     self.env = env
     self.action_space = self.ham.cpm[0].choice_space
+    self.cp_name = self.ham.cpm[0].name
     self.observation_space = joint_state_space
     self.joint_state_to_representation = joint_state_to_representation
     self.initial_machine = initial_machine
     self.initial_args = initial_args
-    self.eval = eval # TODO
+    self.eval = eval
     self.will_render = will_render
     
     
@@ -95,10 +96,10 @@ class SingleChoiceTypeEnv(gym.Env):
 
     self.render_stack=[]
     joint_state, reward, done, info = self.ham.step(choice)
-    self.actual_ep_len += joint_state.tau
-    js_repr = self.joint_state_to_representation(joint_state)
+    self.actual_ep_len += joint_state[self.cp_name].tau
+    js_repr = self.joint_state_to_representation(joint_state[self.cp_name])
     assert self.observation_space.contains(js_repr), "Invalid `JointState` to observation conversion."
-    return js_repr, reward, done, info
+    return js_repr, reward[self.cp_name], done, info
     
   def reset(self, seed:Optional[int]=None):
     """
@@ -119,8 +120,8 @@ class SingleChoiceTypeEnv(gym.Env):
       self.render_stack.append(rendered_frame)
     self.ham.episodic_reset(cur_obsv)
     joint_state, reward, done, info = self.ham.start(self.initial_machine, args=self.initial_args)
-    self.actual_ep_len = joint_state.tau
-    js_repr = self.joint_state_to_representation(joint_state)
+    self.actual_ep_len = joint_state[self.cp_name].tau
+    js_repr = self.joint_state_to_representation(joint_state[self.cp_name])
     assert self.observation_space.contains(js_repr), f"Invalid `JointState` to observation conversion."
     return js_repr
 
