@@ -62,6 +62,8 @@ class ChoicepointsManager:
     self.tau = np.zeros((self.N,))
 
   def distribute_reward(self, reward: float):
+    if self.N==0:
+      return 0
     rewards = self.discounts*reward
     self.cumulative_rewards+=rewards
     self.discounts*=self.init_discounts

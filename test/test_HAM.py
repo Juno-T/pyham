@@ -55,9 +55,9 @@ class TestFunctionality(unittest.TestCase):
     machine_state, reward, done, info = self.myham.start(loop_machine)
     if not done:
       machine_state, reward, done, info = self.myham.step(0)
-      self.assertTrue(machine_state.s == "initial observation")
-      self.assertTrue(np.array_equal(machine_state.m, np.array([[1,0],[0,1]]))) # machine stack
-      self.assertTrue(reward == 0)
+      self.assertTrue(machine_state["m2_choice_point"].s == "initial observation")
+      self.assertTrue(np.array_equal(machine_state["m2_choice_point"].m, np.array([[1,0],[0,1]]))) # machine stack
+      self.assertTrue(reward["m2_choice_point"] == 0)
       self.assertTrue(done==False)
       self.assertTrue(info["next_choicepoint_name"] == "m2_choice_point")
     self.myham.terminate()
@@ -99,11 +99,11 @@ class TestFunctionality(unittest.TestCase):
 
     machine_state, reward, done, info = self.myham.start(loop_machine)
 
-    m_stack = machine_state.m
+    m_stack = machine_state["m2_choice_point"].m
     self.assertTrue(np.array_equal(np.stack(m_stack), np.eye(2)))
     for i in range(1,10):
       machine_state, reward, done, info = self.myham.step(0)
-      m_stack = machine_state.m
+      m_stack = machine_state["m2_choice_point"].m
       self.assertTrue(np.array_equal(np.stack(m_stack), np.eye(2)))
     self.myham.terminate()
   
@@ -123,8 +123,8 @@ class TestFunctionality(unittest.TestCase):
     for i in range(10):
       machine_state, reward, done, info = self.myham.step(5)
       self.assertTrue(info['next_choicepoint_name'] == repetition_choice.name)
-      self.assertTrue(machine_state.tau==5)
-      self.assertTrue(reward == 0.5*5)
+      self.assertTrue(machine_state["repetition"].tau==5)
+      self.assertTrue(reward["repetition"] == 0.5*5)
   
   def test_env_end(self):
     choice = self.myham.choicepoint("choice", spaces.Discrete(10), 1)
@@ -181,11 +181,11 @@ class TestFunctionality(unittest.TestCase):
 
     machine_state, reward, done, info = myham.start(loop_machine)
 
-    m_stack = machine_state.m
+    m_stack = machine_state["m2_choice_point"].m
     self.assertTrue(np.array_equal(np.stack(m_stack), np.array([0,1])))
     for i in range(1,10):
       machine_state, reward, done, info = myham.step(0)
-      m_stack = machine_state.m
+      m_stack = machine_state["m2_choice_point"].m
       self.assertTrue(np.array_equal(np.stack(m_stack), np.array([0,1])))
     myham.terminate()
 
@@ -206,7 +206,7 @@ class TestFunctionality(unittest.TestCase):
 
     machine_state, reward, done, info = myham.start(loop_machine)
 
-    m_stack = machine_state.m
+    m_stack = machine_state["m2_choice_point"].m
     self.assertTrue(np.array_equal(np.stack(m_stack), np.array([[1,0],[0,1]])))
     for i in range(1,10):
       machine_state, reward, done, info = myham.step(0)
@@ -218,11 +218,11 @@ class TestFunctionality(unittest.TestCase):
       ham.CALL(loop_machine)
     
     machine_state, reward, done, info = myham.start(root)
-    m_stack = machine_state.m
+    m_stack = machine_state["m2_choice_point"].m
     self.assertTrue(np.array_equal(np.stack(m_stack), np.array([[0,0,1],[1,0,0],[0,1,0]])))
     for i in range(1,10):
       machine_state, reward, done, info = myham.step(0)
-      m_stack = machine_state.m
+      m_stack = machine_state["m2_choice_point"].m
       self.assertTrue(np.array_equal(np.stack(m_stack), np.array([[0,0,1],[1,0,0],[0,1,0]])))
     myham.terminate()
 
@@ -239,6 +239,18 @@ class TestEdgeCases(unittest.TestCase):
       return "observation", 0.5, action==1, "info"
     self.myham = HAM(env_exe)
     return super().setUp()
+
+  def test_empty_HAM(self):
+    @self.myham.machine
+    def top_loop(ham):
+      ham.CALL_action(0)
+      ham.CALL_action(0)
+    
+    self.myham.episodic_reset("initial observation")
+    obsv, reward, done, info = self.myham.start(top_loop)
+    self.assertTrue(obsv=={})
+    self.assertTrue(reward=={})
+    self.assertTrue(done)
 
   @pytest.mark.timeout(3)
   def test_multiple_start1(self):
@@ -346,19 +358,23 @@ class TestMultiChoicepoint(unittest.TestCase):
     self.myham.episodic_reset("initial obsv")
     machine_state, reward, done, info = self.myham.start(loop_machine)
     self.assertTrue(info["next_choicepoint_name"]=="cp2")
-    _, rew, done, info = self.myham.step(0)
-    self.assertTrue(rew==0)
+    _, reward, done, info = self.myham.step(0)
+    self.assertTrue(reward["cp1"]==0)
     self.assertTrue(info["next_choicepoint_name"]=="cp1")
     machine_state, reward, done, info = self.myham.step(0)
-    self.assertTrue(reward==0.5)
+    self.assertTrue(reward["cp1"]==0.5)
     self.assertTrue(info["next_choicepoint_name"]=="cp1")
     machine_state, reward, done, info = self.myham.step(0)
-    self.assertTrue(reward==0.5)
+    self.assertTrue(reward["cp1"]==0.5)
     self.assertTrue(info["next_choicepoint_name"]=="cp1")
     machine_state, reward, done, info = self.myham.step(0)
-    self.assertTrue(reward==0.5+0.5*0.1+0.5*0.01)
+    self.assertTrue(reward["cp2"]==0.5+0.5*0.1+0.5*0.01)
     self.assertTrue(info["next_choicepoint_name"]=="cp2")
     machine_state, reward, done, info = self.myham.step(0)
     self.assertTrue(done)
+    self.assertTrue("cp1" in machine_state)
+    self.assertTrue("cp2" in machine_state)
+    self.assertTrue("cp1" in reward)
+    self.assertTrue("cp2" in reward)
     self.assertFalse(self.myham.is_alive)
     

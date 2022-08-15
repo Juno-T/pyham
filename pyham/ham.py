@@ -9,8 +9,6 @@ import threading
 from .utils import JointState, AlternateLock, MachineRepresentation
 from .choicepoint import Choicepoint, ChoicepointsManager
 
-# TODO What if choice machines have different kind of choice returned?
-# TODO HAMQ-INT internal transition skip?
 
 class HAM:
 
@@ -101,8 +99,12 @@ class HAM:
     """
       Information to put in info which will be return at each checkpoint
     """
+    if self.current_choicepoint is None:
+      cp_name = None
+    else:
+      cp_name = self.current_choicepoint.name
     return {
-      "next_choicepoint_name": self.current_choicepoint.name,
+      "next_choicepoint_name": cp_name,
       "cumulative_reward": self._cumulative_actual_reward,
       "actual_reward": self._actual_reward,
     }
@@ -120,20 +122,30 @@ class HAM:
           done: Environment done or ham done.
           info: dictionary with extra info, e.g. info['next_choicepoint_name']
     """
-    cp_name = self.current_choicepoint.name
-    cp_reward, cp_tau = self.cpm.reset_choicepoint(cp_name)
-    joint_state = JointState(
-      s=self._current_observation,
-      m=copy.deepcopy(self._machine_stack),
-      tau = cp_tau
-    )
-    # TODO: make it into dict instead of duct-taping in MultiChoiceTypeEnv
-    # joint_state = {one chocie point here}
-    # reward = {one choice point here}
-    # if done:
-    #   joint_state = {all chocie point here}
-    #   reward = { all choice point here}
-    reward = cp_reward
+    if (not done) and self._is_alive:
+      cp_name = self.current_choicepoint.name
+      cp_reward, cp_tau = self.cpm.reset_choicepoint(cp_name)
+      joint_state = {
+        cp_name: JointState(
+          s=self._current_observation,
+          m=copy.deepcopy(self._machine_stack),
+          tau = cp_tau
+      )}
+      reward = {cp_name: cp_reward}
+    else:
+      joint_state = {
+        cp.name: JointState(
+          s=self._current_observation,
+          m=copy.deepcopy(self._machine_stack),
+          tau = self.cpm.tau[cp.id]
+        )
+        for cp in self.cpm
+      }
+      reward = {
+        cp.name: self.cpm.cumulative_rewards[cp.id]
+        for cp in self.cpm
+      }
+      self.cpm.reset()
     done = done or (not self._is_alive)
     info = self.get_info()
     self._actual_reward=0.
@@ -307,7 +319,7 @@ class HAM:
     self._is_alive=True
     self._choice_point_lock.release_to("ham")
     self._choice_point_lock.acquire_for("main")
-    return self._choice_point_handler(done=self._env_done)
+    return self._choice_point_handler(done=self._env_done) # First observation
 
   def step(self, choice):
     """
