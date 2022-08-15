@@ -1,4 +1,4 @@
-from .types import JointState, Transition
+from .units import JointState, Transition
 from .threading import AlternateLock
 from .machine_representation import MachineRepresentation
 import logging
