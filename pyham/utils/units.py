@@ -10,4 +10,4 @@ class Transition(NamedTuple):
   a_tm1: Any # choice
   r_t: float # cumulative reward between choice point
   s_t: JointState
-  done: int # 1 if don
+  done: int # 1 if done

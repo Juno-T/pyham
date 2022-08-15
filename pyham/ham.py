@@ -1,34 +1,34 @@
 from __future__ import annotations # for forward reference of HAM and type hint
 import copy
+from gym import spaces
 from typing import Tuple, Type, Any, Callable, Union, Optional
 import logging
 import traceback
 import threading
 
 from .utils import JointState, AlternateLock, MachineRepresentation
+from .choicepoint import Choicepoint, ChoicepointsManager
 
-# TODO What if choice machines have different kind of choice returned?
-# TODO HAMQ-INT internal transition skip?
 
 class HAM:
 
   def __init__(
     self, 
-    reward_discount: float = 0.9,
     action_executor: Optional[Callable[[Any], Tuple]] = None,
     representation: Optional[Union[str, Callable[[int, int], Any]]] = "onehot",
+    eval: bool=False
   ):
     """
       A hierarchical of abstract machine (HAM) class.
       Parameters:
         action_executor: A function that handle action execution. Must return (obsv, reward, done, info). Can be as simple as gym's env.step.
-        reward_discount: Internal reward discount.
     """
     self.action_executor = action_executor
-    self.reward_discount = reward_discount
     self.machine_repr = MachineRepresentation(representation)
+    self.eval=eval
     self.machines = {}
     self.machine_count=0
+    self.cpm = ChoicepointsManager(eval=eval)
     self._is_alive=False
 
   @property
@@ -61,6 +61,15 @@ class HAM:
     """
     self._current_observation=current_observation
 
+  def set_eval(self, eval: bool):
+    """
+      Set evaluation mode of HAM.
+      Parameters:
+        eval: Switch HAM's eval mode to `eval`.
+    """
+    self.eval=eval
+    self.cpm.set_eval(eval)
+
   def episodic_reset(self, current_observation):
     """
       Reseting internal values. Must be called before each episode.
@@ -76,11 +85,11 @@ class HAM:
     self._is_alive = False
 
     self._current_observation = current_observation
-    self.current_choice_point_name=None
+    self.current_choicepoint_name = None
+    self.current_choicepoint = None
     self._machine_stack = []
-    self._cumulative_reward = 0.
     self._cumulative_actual_reward = 0.
-    self._cumulative_discount = 1.
+    self._actual_reward=0.
     self._tau = 0
     self._tmp_return = None
     self._env_done=False
@@ -90,9 +99,15 @@ class HAM:
     """
       Information to put in info which will be return at each checkpoint
     """
+    if self.current_choicepoint is None:
+      cp_name = None
+    else:
+      cp_name = self.current_choicepoint.name
     return {
-      "next_choice_point": self.current_choice_point_name,
-      "actual_reward": self._cumulative_actual_reward,
+      "next_choicepoint_name": cp_name,
+      "cumulative_reward": self._cumulative_actual_reward,
+      "actual_reward": self._actual_reward,
+      "actual_tau": self._tau
     }
 
   def _choice_point_handler(self, done=False):
@@ -103,22 +118,38 @@ class HAM:
         done: Whether this handler is being called on the episode termination or not.
       Returns:
         A 4 items tuple:
-          joint state:  `JointState` of env state and machine stack at choice point.
-          cumulative reward: Cumulative reward
+          joint state: Dictionary (keys=choicepoints) of `JointState` of env state and machine stack at choice point.
+          cumulative reward: Dictionary (keys=choicepoints) of cumulative reward
           done: Environment done or ham done.
-          info: dictionary with extra info, e.g. info['next_choice_point']
+          info: dictionary with extra info, e.g. info['next_choicepoint_name']
     """
-    joint_state = JointState(
-      s=self._current_observation,
-      m=copy.deepcopy(self._machine_stack),
-      tau = self._tau
-    )
-    reward = self._cumulative_reward
-    done = 1 if done or (not self._is_alive) else 0
+    if (not done) and self._is_alive:
+      cp_name = self.current_choicepoint.name
+      cp_reward, cp_tau = self.cpm.reset_choicepoint(cp_name)
+      joint_state = {
+        cp_name: JointState(
+          s=self._current_observation,
+          m=copy.deepcopy(self._machine_stack),
+          tau = cp_tau
+      )}
+      reward = {cp_name: cp_reward}
+    else:
+      joint_state = {
+        cp.name: JointState(
+          s=self._current_observation,
+          m=copy.deepcopy(self._machine_stack),
+          tau = self.cpm.tau[cp.id]
+        )
+        for cp in self.cpm
+      }
+      reward = {
+        cp.name: self.cpm.cumulative_rewards[cp.id]
+        for cp in self.cpm
+      }
+      self.cpm.reset()
+    done = done or (not self._is_alive)
     info = self.get_info()
-    self._cumulative_reward=0.
-    self._cumulative_actual_reward = 0.
-    self._cumulative_discount = 1.
+    self._actual_reward=0.
     self._tau=0
     return joint_state, reward, bool(done), info
 
@@ -152,6 +183,22 @@ class HAM:
       return func
     return register_func
 
+  def choicepoint(self, name: str, choice_space: spaces.Space, discount: float):
+    """
+      Define choicepoint
+    """
+    if self.is_alive:
+      self.terminate()
+      raise("Cannot create choicepoint inside a machine.")
+
+    if name in self.cpm.choicepoints_order:
+      logging.warn(f"Choice point named {name} is already existed. Ignore new assignment.")
+      return 
+
+    choicepoint = Choicepoint(name, choice_space, discount)
+    self.cpm.add_choicepoint(choicepoint)
+    return choicepoint
+    
   def CALL(self, machine: Union[str, Callable], args=[]):
     """
       A method to CALL a registered machine. This must be used instead of normal python's function calling.
@@ -203,9 +250,9 @@ class HAM:
       logging.error(f"Error executing action: \n{traceback.format_exc()}\n{str(e)}")
       return 0
     self.set_observation(obsv)
-    self._cumulative_reward+=reward*self._cumulative_discount
+    self.cpm.distribute_reward(reward)
     self._cumulative_actual_reward += reward
-    self._cumulative_discount*=self.reward_discount
+    self._actual_reward += reward
     self._tau+=1
     if done:
       self._env_done=True
@@ -213,17 +260,22 @@ class HAM:
       self._choice_point_lock.acquire_for("ham")
     return obsv, reward, done, info
 
-  def CALL_choice(self, choice_point_name):
+  def CALL_choice(self, choicepoint: Union[str, Choicepoint]):
     """
       A function to make a choice point in HAMs.
       Parameters:
-        choice_point_name: choice point name.
+        choicepoint: a `Choicepoint` or it's name.
       Return:
         choice: A choice selected by HAM.step()
     """
     if not self._is_alive :
       return 0
-    self.current_choice_point_name = choice_point_name
+    if isinstance(choicepoint, str):
+      choicepoint = self.cpm.choicepoints.get(choicepoint, None)
+      if choicepoint is None:
+        logging.error(f"Invalid choicepoint name: {choicepoint}")
+        return 0
+    self.current_choicepoint = choicepoint
     self._choice_point_lock.release_to("main")
     self._choice_point_lock.acquire_for("ham")
     if not self._is_alive :
@@ -261,13 +313,14 @@ class HAM:
       raise(f"Argument {args} must be list or tuple, not {type(args)}")
     
     self._choice_point_lock = AlternateLock("main")
-    self.ham_thread = threading.Thread(target = self._start, args=(machine, args))
+    self.cpm.reset()
+    self.ham_thread = threading.Thread(target = self._start, args=(machine, args), daemon=True)
     self._choice_point_lock.acquire_for("main")
     self.ham_thread.start()
     self._is_alive=True
     self._choice_point_lock.release_to("ham")
     self._choice_point_lock.acquire_for("main")
-    return self._choice_point_handler(done=self._env_done)
+    return self._choice_point_handler(done=self._env_done) # First observation
 
   def step(self, choice):
     """
@@ -276,14 +329,25 @@ class HAM:
         choice: A choice to be used by the running HAMs.
       Return:
         A 4 items tuple:
-          joint state:  `JointState` of env state and machine stack at choice point.
-          cumulative reward: Cumulative reward
+          joint_state: Dictionary (keys=choicepoints) of `JointState` of env state and machine stack at choice point.
+          cumulative_reward: Dictionary (keys=choicepoints) of cumulative reward of choice point `info['next_choicepoint_name']` since the previous encounter.
           done: Environment done or ham done.
-          info: dictionary with extra info, e.g. info['next_choice_point']
+          info: dictionary with extra info, e.g. 
+            `'next_choicepoint_name'`: Next ChoicePoint's name waiting for `step`
+            `'actual_reward'`: Environment's non-discounted cumulative reward since the previous choicepoint (regardless of choicepoint).
+            `'cumulative_reward'`: Environment's non-discounted cumulative reward since the episode start.
+        At the last step of the episode (either env ends or HAM is done), `joint_state` and `cumulative_reward` will contains all the choicepoints.
     """
     if not self._is_alive:
       logging.warning("HAM is not running. Try restart ham")
       return None
+
+    if not self.current_choicepoint.choice_space.contains(choice):
+      self.terminate()
+      raise(
+        f"Invalid choice \'{choice}\' for choicepoint {self.current_choicepoint.name} \
+          with {str(self.current_choicepoint.choice_space)} choice space")
+    
     self._choice = choice
     self._choice_point_lock.release_to("ham")
     self._choice_point_lock.acquire_for("main")

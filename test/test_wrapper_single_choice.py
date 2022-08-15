@@ -7,8 +7,10 @@ from numpy.random import default_rng
 import gym
 from gym import spaces
 
-from pyham.ham import HAM, WrappedEnv, create_concat_joint_state_wrapped_env
-from pyham.ham.utils import JointState
+from pyham import HAM
+from pyham.wrappers.single_choice import SingleChoiceTypeEnv, create_concat_joint_state_SingleChoiceTypeEnv
+from pyham.utils import JointState
+from pyham.integration.gym_wrappers import DecodedMultiDiscreteWrapper
 
 class TestBoxEnvFunctionality(unittest.TestCase):
   @classmethod
@@ -17,12 +19,12 @@ class TestBoxEnvFunctionality(unittest.TestCase):
 
   def setUp(self) -> None:
     cartpole_env = gym.make("CartPole-v1")
-    discount = 0.99
-    myham = HAM(discount)
+    myham = HAM()
 
     num_machines = 2
     reprs = np.eye(num_machines) # one-hot representation
 
+    binary = myham.choicepoint("binary", spaces.Discrete(2), discount=0.99)
     @myham.machine_with_repr(reprs[0])
     def top_loop(ham):
       while ham.is_alive:
@@ -30,34 +32,32 @@ class TestBoxEnvFunctionality(unittest.TestCase):
         
     @myham.machine_with_repr(reprs[1])
     def double_action_machine(ham):
-      binary_choice = int(ham.CALL_choice("binary"))
+      binary_choice = int(ham.CALL_choice(binary))
       ham.CALL_action(binary_choice)
       ham.CALL_action(binary_choice)
       return 0
 
-    choice_space = spaces.Discrete(cartpole_env.action_space.n)
     machine_stack_cap = 3
-    self.wrapped_env = create_concat_joint_state_wrapped_env(myham, 
-                              cartpole_env, 
-                              choice_space, 
+    self.wrapped_env = create_concat_joint_state_SingleChoiceTypeEnv(myham, 
+                              cartpole_env,
                               initial_machine=top_loop,
                               np_pad_config = {"constant_values": 0},
                               machine_stack_cap=machine_stack_cap,
+                              eval=False,
                               will_render=True)
-    self.wrapped_env_no_render = create_concat_joint_state_wrapped_env((myham), 
+    self.wrapped_env_no_render = create_concat_joint_state_SingleChoiceTypeEnv(myham, 
                               cartpole_env, 
-                              choice_space, 
                               initial_machine=top_loop,
                               np_pad_config = {"constant_values": 0},
                               machine_stack_cap=machine_stack_cap,
+                              eval=False,
                               will_render=False)
     return super().setUp()
 
   @pytest.mark.timeout(3)
   def test_manual_init(self):
     cartpole_env = gym.make("CartPole-v1")
-    discount = 0.99
-    myham = HAM(discount)
+    myham = HAM()
 
     num_machines = 2
     repr_machine_cap = 3
@@ -67,11 +67,12 @@ class TestBoxEnvFunctionality(unittest.TestCase):
     machine_stack_low = np.zeros(machine_stack_repr_shape[0])
     og_obsv_high = cartpole_env.observation_space.high
     og_obsv_low = cartpole_env.observation_space.low
-    choice_space = spaces.Discrete(cartpole_env.action_space.n)
     js_space = spaces.Box(np.hstack((og_obsv_low, machine_stack_low)),
                                   np.hstack((og_obsv_high, machine_stack_high)),
                                   dtype = np.float32)
 
+
+    binary = myham.choicepoint("binary", spaces.Discrete(2), discount=0.99)
     @myham.machine_with_repr(reprs[0])
     def top_loop(ham):
       while ham.is_alive:
@@ -79,7 +80,7 @@ class TestBoxEnvFunctionality(unittest.TestCase):
         
     @myham.machine_with_repr(reprs[1])
     def double_action_machine(ham):
-      binary_choice = int(ham.CALL_choice("binary"))
+      binary_choice = int(ham.CALL_choice(binary))
       ham.CALL_action(binary_choice)
       ham.CALL_action(binary_choice)
       return 0
@@ -91,9 +92,8 @@ class TestBoxEnvFunctionality(unittest.TestCase):
       js_repr = np.float32(np.hstack((js.s,machine_stack_repr)))
       return js_repr
 
-    wrapped_env = WrappedEnv(myham, 
+    wrapped_env = SingleChoiceTypeEnv(myham, 
                               cartpole_env, 
-                              choice_space, 
                               js_space, 
                               js2obsv, 
                               initial_machine=top_loop,
@@ -113,7 +113,7 @@ class TestBoxEnvFunctionality(unittest.TestCase):
     self.assertTrue(np.array_equal(np.array([0,0,1,0,0,1]), obsv[4:]))
     self.assertTrue(reward == 1+0.99)
     self.assertFalse(done)
-    self.assertTrue(info['next_choice_point'] == "binary")
+    self.assertTrue(info['next_choicepoint_name'] == "binary")
     while not done:
       obsv, reward, done, info = env.step(0)
     self.assertTrue(done)
@@ -145,6 +145,13 @@ class TestBoxEnvFunctionality(unittest.TestCase):
     self.test_running(self.wrapped_env)
     self.wrapped_env.close()
     
+  @pytest.mark.timeout(3)
+  def test_turning_render_mode_on_off(self):
+    self.wrapped_env.set_render_mode(True)
+    self.test_rendering_and_running(self.wrapped_env)
+    self.wrapped_env.set_render_mode(False)
+    self.test_running(self.wrapped_env)
+    self.wrapped_env.close()
 
 class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
   @classmethod
@@ -153,11 +160,13 @@ class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
 
   def setUp(self) -> None:
     taxi_env = DecodedMultiDiscreteWrapper(gym.make("Taxi-v3"), [5,5,5,4])
-    discount = 0.99
-    myham = HAM(discount)
+    
+    myham = HAM()
 
     num_machines = 2
     reprs = np.eye(num_machines) # one-hot representation
+
+    nav = myham.choicepoint("nav", spaces.Discrete(4), discount = 0.99)
 
     @myham.machine_with_repr(reprs[0])
     def top_loop(ham):
@@ -166,15 +175,13 @@ class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
         
     @myham.machine_with_repr(reprs[1])
     def nav_machine(ham):
-      choice = int(ham.CALL_choice("nav"))
+      choice = int(ham.CALL_choice(nav))
       ham.CALL_action(choice)
       return 0
 
-    choice_space = spaces.Discrete(taxi_env.action_space.n)
     machine_stack_cap = 3
-    self.wrapped_env = create_concat_joint_state_wrapped_env(myham, 
+    self.wrapped_env = create_concat_joint_state_SingleChoiceTypeEnv(myham, 
                               taxi_env, 
-                              choice_space, 
                               initial_machine=top_loop,
                               np_pad_config = {"constant_values": 0},
                               machine_stack_cap=machine_stack_cap,
@@ -192,7 +199,7 @@ class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
     self.assertTrue(np.array_equal(np.array([0,0,1,0,0,1]), obsv[4:]))
     obsv, reward, done, info = env.step(0)
     self.assertTrue(np.array_equal(np.array([0,0,1,0,0,1]), obsv[4:]))
-    self.assertTrue(info['next_choice_point'] == "nav")
+    self.assertTrue(info['next_choicepoint_name'] == "nav")
     env.close()
 
 class TestVariousHAMs(unittest.TestCase):
@@ -207,11 +214,12 @@ class TestVariousHAMs(unittest.TestCase):
 
   def test_triple_choice(self):
     rng = default_rng(42)
-    myham = HAM(self.discount)
+    myham = HAM()
 
     num_machines = 2
     reprs = np.eye(num_machines) # one-hot representation
 
+    triplechoice = myham.choicepoint("triplechoice", spaces.Discrete(3), discount=self.discount)
     @myham.machine_with_repr(reprs[0])
     def top_loop(ham):
       while ham.is_alive:
@@ -219,17 +227,15 @@ class TestVariousHAMs(unittest.TestCase):
         
     @myham.machine_with_repr(reprs[1])
     def double_action_machine(ham):
-      choice = int(ham.CALL_choice("012"))
+      choice = int(ham.CALL_choice(triplechoice))
       if choice<2:
         ham.CALL_action(choice)
         ham.CALL_action(choice)
       return 0
 
-    choice_space = spaces.Discrete(3)
     machine_stack_cap = 3
-    wrapped_env = create_concat_joint_state_wrapped_env(myham, 
+    wrapped_env = create_concat_joint_state_SingleChoiceTypeEnv(myham, 
                               self.cartpole_env, 
-                              choice_space, 
                               initial_machine=top_loop,
                               np_pad_config = {"constant_values": 0},
                               machine_stack_cap=machine_stack_cap,
@@ -243,8 +249,10 @@ class TestVariousHAMs(unittest.TestCase):
 
   def test_default_repr_ham(self):
     rng = default_rng(42)
-    myham = HAM(self.discount) # default representation=onehot
+    myham = HAM() # default representation=onehot
 
+
+    triplechoice = myham.choicepoint("triplechoice", spaces.Discrete(3), discount=self.discount)
     @myham.machine
     def top_loop(ham):
       while ham.is_alive:
@@ -252,17 +260,15 @@ class TestVariousHAMs(unittest.TestCase):
         
     @myham.machine
     def double_action_machine(ham):
-      choice = int(ham.CALL_choice("012"))
+      choice = int(ham.CALL_choice("triplechoice"))
       if choice<2:
         ham.CALL_action(choice)
         ham.CALL_action(choice)
       return 0
 
-    choice_space = spaces.Discrete(3)
     machine_stack_cap = 3
-    wrapped_env = create_concat_joint_state_wrapped_env(myham, 
+    wrapped_env = create_concat_joint_state_SingleChoiceTypeEnv(myham, 
                               self.cartpole_env, 
-                              choice_space, 
                               initial_machine=top_loop,
                               np_pad_config = {"constant_values": 0},
                               machine_stack_cap=machine_stack_cap,
@@ -273,16 +279,3 @@ class TestVariousHAMs(unittest.TestCase):
     while not done:
       obsv, reward, done, info = wrapped_env.step(rng.integers(3))
     self.assertTrue(done)
-
-## AUXILIARY
-
-from typing import Union, List
-
-class DecodedMultiDiscreteWrapper(gym.ObservationWrapper):
-  def __init__(self, env: gym.Env, nvec: Union[List[int], np.ndarray]):
-    super().__init__(env)
-    self.obsv_decoder = lambda x: list(env.decode(x))
-    self.observation_space = spaces.MultiDiscrete(nvec)
-
-  def observation(self, observation):
-    return self.obsv_decoder(observation)

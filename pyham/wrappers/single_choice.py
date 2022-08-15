@@ -3,12 +3,13 @@ import copy
 import numpy as np
 import gym
 from gym import spaces
+import logging
 
-from pyham.ham import HAM
-from pyham.ham.utils import JointState
+from ..ham import HAM
+from ..utils import JointState, deprecated
 
 
-class WrappedEnv(gym.Env):
+class SingleChoiceTypeEnv(gym.Env):
   """
     Custom Wrapped Environment which converts HAM into gym-like environment.
   """
@@ -16,32 +17,36 @@ class WrappedEnv(gym.Env):
 
   def __init__(self, 
     ham:HAM, 
-    env:gym.Env, 
-    choice_space: spaces.Space, 
+    env:gym.Env,
     joint_state_space: spaces.Space,
     joint_state_to_representation: Callable[[JointState], Any],
     initial_machine: Union[Callable, str],
-    initial_args = [],
+    initial_args: Union[list, tuple]=[],
+    eval: bool = False,
     will_render: bool = False,
   ):
     """
       Parameters:
         ham: Instantiated ham with machines registered
         env: gym environment to use
-        choice_space: Domain of choices in the registered machines.
         joint_state_space: Joint state representation space
         joint_state_to_representation: A function that convert `JointState` to joint state representation accourding to `joint_state_space`
         initial_machine: The top level machine to start the HAM with.
+        eval: whether to instantiate for evaluation or not. It will affect reward calculation.
         will_render: If true, pre-render every frames even if `render()` is not being called. Must be set to true if `render()` method is expected to be called.
     """
-    super(WrappedEnv, self).__init__()
+    super(SingleChoiceTypeEnv, self).__init__()
     self.ham = copy.deepcopy(ham)
+    assert(len(self.ham.cpm)==1), "This HAM has more than one choicepoint type"
+    self.ham.set_eval(eval)
     self.env = env
-    self.action_space = choice_space
+    self.action_space = self.ham.cpm[0].choice_space
+    self.cp_name = self.ham.cpm[0].name
     self.observation_space = joint_state_space
     self.joint_state_to_representation = joint_state_to_representation
     self.initial_machine = initial_machine
     self.initial_args = initial_args
+    self.eval = eval
     self.will_render = will_render
     
     
@@ -92,10 +97,10 @@ class WrappedEnv(gym.Env):
 
     self.render_stack=[]
     joint_state, reward, done, info = self.ham.step(choice)
-    self.actual_ep_len += joint_state.tau
-    js_repr = self.joint_state_to_representation(joint_state)
+    self.actual_ep_len += info["actual_tau"]
+    js_repr = self.joint_state_to_representation(joint_state[self.cp_name])
     assert self.observation_space.contains(js_repr), "Invalid `JointState` to observation conversion."
-    return js_repr, reward, done, info
+    return js_repr, reward[self.cp_name], done, info
     
   def reset(self, seed:Optional[int]=None):
     """
@@ -116,8 +121,10 @@ class WrappedEnv(gym.Env):
       self.render_stack.append(rendered_frame)
     self.ham.episodic_reset(cur_obsv)
     joint_state, reward, done, info = self.ham.start(self.initial_machine, args=self.initial_args)
-    self.actual_ep_len = joint_state.tau
-    js_repr = self.joint_state_to_representation(joint_state)
+    if joint_state=={}:
+      logging.warning("\nHAM or env ends immediately. Try including choicepoint in HAM or otherwise, try new seed.")
+    self.actual_ep_len = joint_state[self.cp_name].tau
+    js_repr = self.joint_state_to_representation(joint_state[self.cp_name])
     assert self.observation_space.contains(js_repr), f"Invalid `JointState` to observation conversion."
     return js_repr
 
@@ -151,25 +158,28 @@ class WrappedEnv(gym.Env):
       return
     self.env.seed(seed)
 
-
-def create_concat_joint_state_wrapped_env(ham: HAM, 
-                                    env: gym.Env, 
-                                    choice_space: spaces.Space,
+@deprecated("pyham.wrappers.helpers.create_concat_joint_state_env")
+def create_concat_joint_state_SingleChoiceTypeEnv(ham: HAM, 
+                                    env: gym.Env,
                                     initial_machine: Union[Callable, str],
                                     np_pad_config: dict,
                                     initial_args = [],
                                     machine_stack_cap: int = 1,
                                     dtype=np.float32,
+                                    eval: bool=False,
                                     will_render=False
                                     ):
   """
+    Deprecated, unifying into one function: pyham.wrappers.helpers.create_concat_joint_state_env
+
+    **
     Currently support only env with Box or MultiDiscrete observation space.
     Machine representations must also be fixed length binary arrays.
+    **
 
     Parameters:
       ham: HAM
       env: gym.Env
-      choice_space: choice space designed in ham
       np_pad_config: dictionary containing numpy.pad's mode and the reset of kwargs.
         e.g. 
         np_pad_config = {
@@ -177,9 +187,45 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
           "constant_values": 0
         }
       machine_stack_cap: Number of top most machines to include in the joint state representation, pad if needed.
+      dtype: data type for `spaces.Box`
+      eval: whether to instantiate env for evaluation or not.
+      will_render: If true, pre-render every frames even if `render()` is not being called. Must be set to true if `render()` method is expected to be called.
     Return:
       Wrapped env with joint state representation defined as concatenated numpy array between original env's observation space and fixed length of machine stack representations.
   """
+  
+  def _concat_Box_joint_state(og_space, repr_length, np_pad_config: dict, machine_stack_cap: int, dtype):
+    machine_stack_repr_shape = (machine_stack_cap*repr_length,)
+    machine_stack_high = np.ones(machine_stack_repr_shape[0])
+    machine_stack_low = np.zeros(machine_stack_repr_shape[0])
+    og_obsv_high = og_space.high
+    og_obsv_low = og_space.low
+    js_space = spaces.Box(np.hstack((og_obsv_low, machine_stack_low)),
+                                  np.hstack((og_obsv_high, machine_stack_high)),
+                                  dtype = dtype)
+    def js2repr(js: JointState):
+      machine_stack_repr = np.hstack(js.m[-machine_stack_cap:])
+      padding = max(0, machine_stack_repr_shape[0]-len(machine_stack_repr))
+      machine_stack_repr = np.pad(machine_stack_repr, (padding,0), **np_pad_config)
+      js_repr = np.float32(np.hstack((js.s,machine_stack_repr)))
+      return js_repr
+
+    return js_space, js2repr
+    
+  def _concat_MultiDiscrete_joint_state(og_space, repr_length, np_pad_config: dict, machine_stack_cap: int):
+    og_nvec = og_space.nvec
+    machine_stack_repr_shape = (machine_stack_cap*repr_length,)
+    machine_stack_nvec = np.int64(np.ones(machine_stack_repr_shape)*2)
+    js_space = spaces.MultiDiscrete(np.hstack((og_nvec, machine_stack_nvec)))
+
+    def js2repr(js: JointState):
+      machine_stack_repr = np.hstack(js.m[-machine_stack_cap:])
+      padding = max(0, machine_stack_repr_shape[0]-len(machine_stack_repr))
+      machine_stack_repr = np.pad(machine_stack_repr, (padding,0), **np_pad_config)
+      js_repr =np.int64(np.hstack((js.s,machine_stack_repr)))
+      return js_repr
+    return js_space, js2repr
+
   def _obj_len(obj):
     if hasattr(obj, '__len__'):
       return len(obj)
@@ -201,46 +247,11 @@ def create_concat_joint_state_wrapped_env(ham: HAM,
     js_space, js2repr = _concat_MultiDiscrete_joint_state(*build_js_args)
   else:
     raise("Unsupported observation space type.")
-  return WrappedEnv(ham, 
-                    env, 
-                    choice_space, 
-                    js_space, 
-                    js2repr, 
-                    initial_machine=initial_machine,
-                    initial_args=initial_args,
-                    will_render=will_render)
-
-
-def _concat_Box_joint_state(og_space, repr_length, np_pad_config: dict, machine_stack_cap: int, dtype):
-  machine_stack_repr_shape = (machine_stack_cap*repr_length,)
-  machine_stack_high = np.ones(machine_stack_repr_shape[0])
-  machine_stack_low = np.zeros(machine_stack_repr_shape[0])
-  og_obsv_high = og_space.high
-  og_obsv_low = og_space.low
-  js_space = spaces.Box(np.hstack((og_obsv_low, machine_stack_low)),
-                                np.hstack((og_obsv_high, machine_stack_high)),
-                                dtype = dtype)
-  def js2repr(js: JointState):
-    machine_stack_repr = np.hstack(js.m[-machine_stack_cap:])
-    padding = max(0, machine_stack_repr_shape[0]-len(machine_stack_repr))
-    machine_stack_repr = np.pad(machine_stack_repr, (padding,0), **np_pad_config)
-    js_repr = np.float32(np.hstack((js.s,machine_stack_repr)))
-    return js_repr
-
-  return js_space, js2repr
-  
-def _concat_MultiDiscrete_joint_state(og_space, repr_length, np_pad_config: dict, machine_stack_cap: int):
-  og_nvec = og_space.nvec
-  machine_stack_repr_shape = (machine_stack_cap*repr_length,)
-  machine_stack_nvec = np.int64(np.ones(machine_stack_repr_shape)*2)
-  js_space = spaces.MultiDiscrete(np.hstack((og_nvec, machine_stack_nvec)))
-
-  def js2repr(js: JointState):
-    machine_stack_repr = np.hstack(js.m[-machine_stack_cap:])
-    padding = max(0, machine_stack_repr_shape[0]-len(machine_stack_repr))
-    machine_stack_repr = np.pad(machine_stack_repr, (padding,0), **np_pad_config)
-    js_repr =np.int64(np.hstack((js.s,machine_stack_repr)))
-    return js_repr
-  return js_space, js2repr
-  
-
+  return SingleChoiceTypeEnv(ham=ham, 
+                              env=env,
+                              joint_state_space=js_space,
+                              joint_state_to_representation=js2repr,
+                              initial_machine=initial_machine,
+                              initial_args=initial_args,
+                              eval=eval,
+                              will_render=will_render)

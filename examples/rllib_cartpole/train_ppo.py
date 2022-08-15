@@ -8,12 +8,12 @@ from ray.rllib.env.env_context import EnvContext
 import argparse
 from pyvirtualdisplay import Display
 
-from pyham.ham.wrapper import create_concat_joint_state_wrapped_env
+from pyham.wrappers.single_choice import create_concat_joint_state_SingleChoiceTypeEnv
 
 from machines import create_trivial_cartpole_ham, create_balance_recover_cartpole_ham
 
 def make_wrapped_env(config: EnvContext):
-  eval = config.get("eval", False) # bool # eval=True->will_render
+  eval = config.get("eval", False)
   original_env = gym.make(config["env_name"])
 
   create_machine = None
@@ -21,16 +21,16 @@ def make_wrapped_env(config: EnvContext):
     create_machine = create_trivial_cartpole_ham
   elif config["machine_type"]=="balance-recover":
     create_machine = create_balance_recover_cartpole_ham
-  ham, choice_space, initial_machine, initial_args = create_machine(config["internal_discount"])
+  ham, initial_machine, initial_args = create_machine()
 
-  wrapped_env = create_concat_joint_state_wrapped_env(ham, 
-                            original_env, 
-                            choice_space, 
+  wrapped_env = create_concat_joint_state_SingleChoiceTypeEnv(ham, 
+                            original_env,
                             initial_machine=initial_machine,
                             initial_args=initial_args,
                             np_pad_config = {"constant_values": config["machine_stack_padding_value"]},
                             machine_stack_cap=config["machine_stack_cap"],
-                            will_render=False
+                            eval=eval,
+                            will_render=False,
                             # will_render=eval
                             )
   return wrapped_env
@@ -77,6 +77,7 @@ def main(config):
   try:
     ray.init(address='auto')
   except:
+    print("Start new ray instance\n")
     ray.init()
   tune.run(
     config["algo"],
@@ -120,7 +121,6 @@ if __name__=="__main__":
       "machine_type": str(args.machine), # "balance-recover"
       "machine_stack_cap": 1,
       "machine_stack_padding_value": 0,
-      "internal_discount": 1,
     },
     "horizon": 500,
 
