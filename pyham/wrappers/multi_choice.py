@@ -1,7 +1,7 @@
 try:
   from ray.rllib.env.multi_agent_env import MultiAgentEnv
 except:
-  raise("Multi-choice environment requires `ray[rllib]`.")
+  raise Exception("Multi-choice environment requires `ray[rllib]`.")
 
 from typing import Optional, Union, Callable, Any, Dict
 import copy
@@ -49,6 +49,8 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
     self.initial_args = initial_args
     self.eval = eval
     self.will_render = will_render
+
+    self._agent_ids = set(self.ham.cpm.choicepoints_order)
 
     self._all_not_done = {
       cp.name: False

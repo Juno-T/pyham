@@ -2,7 +2,7 @@ try:
   import stable_baselines3
   import wandb
 except:
-  raise("Installation needed for sb3 integration.")
+  raise Exception("Installation needed for sb3 integration.")
 
 import os
 from pathlib import Path

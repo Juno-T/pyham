@@ -189,7 +189,7 @@ class HAM:
     """
     if self.is_alive:
       self.terminate()
-      raise("Cannot create choicepoint inside a machine.")
+      raise Exception("Cannot create choicepoint inside a machine.")
 
     if name in self.cpm.choicepoints_order:
       logging.warn(f"Choice point named {name} is already existed. Ignore new assignment.")
@@ -307,10 +307,10 @@ class HAM:
       return 0
     
     if self.action_executor is None:
-      raise("`action_executor` must be defined.")
+      raise Exception("`action_executor` must be defined.")
     
     if (not isinstance(args, list)) and (not isinstance(args, tuple)):
-      raise(f"Argument {args} must be list or tuple, not {type(args)}")
+      raise Exception(f"Argument {args} must be list or tuple, not {type(args)}")
     
     self._choice_point_lock = AlternateLock("main")
     self.cpm.reset()
@@ -344,7 +344,7 @@ class HAM:
 
     if not self.current_choicepoint.choice_space.contains(choice):
       self.terminate()
-      raise(
+      raise Exception(
         f"Invalid choice \'{choice}\' for choicepoint {self.current_choicepoint.name} \
           with {str(self.current_choicepoint.choice_space)} choice space")
     
