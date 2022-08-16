@@ -94,7 +94,7 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
       return ret
     return _action_executor
 
-  def step(self, choice):
+  def step(self, choice: dict):
     """
       gym-like step api
       Parameters:
@@ -106,10 +106,14 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
           done: Environment done or ham done.
           info: dictionary with extra info, e.g. info['next_choice_point']
     """
-    assert self.ham.is_alive, "HAMs is not started or has stopped. Try reset env."
+    assert self.ham.is_alive, "HAMs is not started or had stopped. Try reset env."
+    if choice=={}:
+      return {self.ham.current_choicepoint.name: self.observation_space.sample()}, {}, self._all_not_done, {}
 
     self.render_stack=[]
-    joint_states, rewards, done, info = self.ham.step(choice)
+    next_cp_name =self.ham.current_choicepoint.name
+    assert next_cp_name in choice
+    joint_states, rewards, done, info = self.ham.step(choice[next_cp_name])
     self.actual_ep_len += info["actual_tau"]
     js_reprs = {
       cp_name: self.joint_state_to_representation(joint_state)

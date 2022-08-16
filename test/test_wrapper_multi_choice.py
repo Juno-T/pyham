@@ -3,9 +3,9 @@ import pytest
 import numpy as np
 import copy
 from numpy.random import default_rng
-
 import gym
 from gym import spaces
+from ray.rllib.utils import check_env
 
 from pyham import HAM
 from pyham.wrappers.multi_choice import MultiChoiceTypeEnv
@@ -84,23 +84,26 @@ class TestBoxEnvFunctionality(unittest.TestCase):
     self.assertTrue("cp1" in obsv)
     self.assertTrue(len(obsv["cp1"])==8)
     self.assertTrue(np.array_equal(np.array([0,0,1,0]), obsv["cp1"][4:]))
-    obsv, reward, done, info = env.step(2) # rep
+    obsv, reward, done, info = env.step({"cp1": 2}) # rep
     self.assertTrue("cp2" in obsv)
     self.assertTrue("cp2" in reward)
     self.assertTrue(len(obsv["cp2"])==8)
+    self.assertTrue(list(obsv)[0]==info["next_choicepoint_name"])
     self.assertTrue(np.array_equal(np.array([1,0,0,1]), obsv["cp2"][4:]))
     self.assertTrue(reward["cp2"] == 0)
     self.assertTrue(env.actual_ep_len==0)
     self.assertTrue((not done["cp1"]) and (not done["cp2"]) and (not done["__all__"]))
-    obsv, reward, done, info = env.step(0) # direction
+    obsv, reward, done, info = env.step({"cp2": 0}) # direction
     self.assertTrue("cp1" in obsv)
     self.assertTrue("cp1" in reward)
     self.assertTrue(len(obsv["cp1"])==8)
+    self.assertTrue(list(obsv)[0]==info["next_choicepoint_name"])
     self.assertTrue(np.array_equal(np.array([0,0,1,0]), obsv["cp1"][4:]))
     self.assertTrue(reward["cp1"] == 1+1*0.1)
     self.assertTrue((not done["cp1"]) and (not done["cp2"]) and (not done["__all__"]))
     while not done["__all__"]:
-      obsv, reward, done, info = env.step(1)
+      self.assertTrue(list(obsv)[0]==info["next_choicepoint_name"])
+      obsv, reward, done, info = env.step({info["next_choicepoint_name"]: 1})
     self.assertTrue("cp1" in obsv)
     self.assertTrue("cp1" in reward)
     self.assertTrue("cp2" in obsv)
@@ -115,17 +118,17 @@ class TestBoxEnvFunctionality(unittest.TestCase):
     frames = env.render()
     self.assertTrue(len(frames)==1) # initial frame
     self.assertEqual(frames[0].shape, (400, 600, 3))
-    env.step(2) # rep
+    env.step({"cp1": 2}) # rep
     frames = env.render()
     self.assertTrue(len(frames)==0)
-    env.step(0) # direction
+    env.step({"cp2": 0}) # direction
     frames = env.render()
     self.assertTrue(len(frames)==2)
     for frame in frames:
       self.assertEqual(frame.shape, (400, 600, 3))
     
-    env.step(1)
-    env.step(1)
+    env.step({"cp1":1})
+    env.step({"cp2":1})
     frames = env.render()
     self.assertTrue(len(frames)==1)
     self.assertEqual(frames[0].shape, (400, 600, 3))
@@ -151,23 +154,26 @@ class TestBoxEnvFunctionality(unittest.TestCase):
     self.assertTrue("cp1" in obsv)
     self.assertTrue(len(obsv["cp1"])==8)
     self.assertTrue(np.array_equal(np.array([0,0,1,0]), obsv["cp1"][4:]))
-    obsv, reward, done, info = env.step(2) # rep
+    obsv, reward, done, info = env.step({"cp1":2}) # rep
     self.assertTrue("cp2" in obsv)
     self.assertTrue("cp2" in reward)
     self.assertTrue(len(obsv["cp2"])==8)
+    self.assertTrue(list(obsv)[0]==info["next_choicepoint_name"])
     self.assertTrue(np.array_equal(np.array([1,0,0,1]), obsv["cp2"][4:]))
     self.assertTrue(reward["cp2"] == 0)
     self.assertTrue(env.actual_ep_len==0)
     self.assertTrue((not done["cp1"]) and (not done["cp2"]) and (not done["__all__"]))
-    obsv, reward, done, info = env.step(0) # direction
+    obsv, reward, done, info = env.step({"cp2":0}) # direction
     self.assertTrue("cp1" in obsv)
     self.assertTrue("cp1" in reward)
     self.assertTrue(len(obsv["cp1"])==8)
+    self.assertTrue(list(obsv)[0]==info["next_choicepoint_name"])
     self.assertTrue(np.array_equal(np.array([0,0,1,0]), obsv["cp1"][4:]))
     self.assertTrue(reward["cp1"] == 1+1*1)
     self.assertTrue((not done["cp1"]) and (not done["cp2"]) and (not done["__all__"]))
     while not done["__all__"]:
-      obsv, reward, done, info = env.step(1)
+      self.assertTrue(list(obsv)[0]==info["next_choicepoint_name"])
+      obsv, reward, done, info = env.step({info["next_choicepoint_name"]:1})
     self.assertTrue("cp1" in obsv)
     self.assertTrue("cp1" in reward)
     self.assertTrue("cp2" in obsv)
@@ -224,9 +230,51 @@ class TestMultiDiscreteEnvFunctionality(unittest.TestCase):
     self.assertTrue(env.observation_space.contains(obsv["replication"]))
     self.assertTrue(len(obsv["replication"])==10)
     self.assertTrue(np.array_equal(np.array([0,0,0,0,1,0]), obsv["replication"][4:]))
-    obsv, reward, done, info = env.step(1)
+    obsv, reward, done, info = env.step({"replication":1})
     self.assertTrue(np.array_equal(np.array([0,0,1,0,0,1]), obsv["nav"][4:]))
     self.assertTrue(info['next_choicepoint_name'] == "nav")
-    obsv, reward, done, info = env.step(0)
+    obsv, reward, done, info = env.step({"nav":0})
     self.assertTrue(np.array_equal(np.array([0,0,0,0,1,0]), obsv["replication"][4:]))
     env.close()
+
+class TestRLLIBEnvChecker(unittest.TestCase):
+  @classmethod
+  def setUpClass(cls) -> None:
+    return super().setUpClass()
+
+  def setUp(self) -> None:
+    taxi_env = DecodedMultiDiscreteWrapper(gym.make("Taxi-v3"), [5,5,5,4])
+    
+    myham = HAM()
+
+    num_machines = 2
+    reprs = np.eye(num_machines) # one-hot representation
+
+    replication = myham.choicepoint("replication", spaces.Discrete(3), discount = 0.1)
+    nav = myham.choicepoint("nav", spaces.Discrete(4), discount = 0.99)
+
+    @myham.machine_with_repr(reprs[0])
+    def top_loop(ham):
+      while ham.is_alive:
+        rep = ham.CALL_choice(replication)
+        ham.CALL(nav_machine, (rep,))
+        
+    @myham.machine_with_repr(reprs[1])
+    def nav_machine(ham, rep: int):
+      choice = int(ham.CALL_choice(nav))
+      for _ in range(rep):
+        ham.CALL_action(choice)
+
+    machine_stack_cap = 3
+    self.wrapped_env = create_concat_joint_state_env(myham, 
+                              taxi_env, 
+                              initial_machine=top_loop,
+                              np_pad_config = {"constant_values": 0},
+                              machine_stack_cap=machine_stack_cap,
+                              eval=False,
+                              will_render=False)
+    return super().setUp()
+
+  @pytest.mark.timeout(3)
+  def test_running(self):
+    check_env(self.wrapped_env)

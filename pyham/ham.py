@@ -85,7 +85,6 @@ class HAM:
     self._is_alive = False
 
     self._current_observation = current_observation
-    self.current_choicepoint_name = None
     self.current_choicepoint = None
     self._machine_stack = []
     self._cumulative_actual_reward = 0.
