@@ -119,6 +119,10 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
       cp_name: self.joint_state_to_representation(joint_state)
       for cp_name, joint_state in joint_states.items()
     }
+    info = {
+      cp_name: info
+      for cp_name in joint_states.keys()
+    }
     done = self._all_done if done else self._all_not_done
     return js_reprs, rewards, done, info
     
