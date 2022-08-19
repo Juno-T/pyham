@@ -28,6 +28,7 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
     initial_args: Union[list, tuple]=[],
     eval: bool = False,
     will_render: bool = False,
+    raw_rewards: bool = False,
   ):
     """
       Parameters:
@@ -49,18 +50,21 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
     self.initial_args = initial_args
     self.eval = eval
     self.will_render = will_render
-
-    self._agent_ids = set(self.ham.cpm.choicepoints_order)
+    self.raw_rewards = raw_rewards
+    self._eval_agent_id = "ACTUAL" # A work-around to accumulate actual environment's rewards
+    self._agent_ids = set(self.ham.cpm.choicepoints_order+[self._eval_agent_id])
 
     self._all_not_done = {
       cp.name: False
       for cp in self.ham.cpm
     }
+    self._all_not_done[self._eval_agent_id] = False
     self._all_not_done["__all__"] = False
     self._all_done = {
       cp.name: True
       for cp in self.ham.cpm
     }
+    self._all_done[self._eval_agent_id] = True
     self._all_done["__all__"] = True
     
     
@@ -119,6 +123,13 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
       cp_name: self.joint_state_to_representation(joint_state)
       for cp_name, joint_state in joint_states.items()
     }
+    js_reprs[self._eval_agent_id]=self.observation_space.sample()
+    if self.raw_rewards:
+      rewards = {
+        cp.name: info["actual_reward"]
+        for cp in self.ham.cpm
+      }
+    rewards[self._eval_agent_id] = info["actual_reward"]
     info = {
       cp_name: info
       for cp_name in joint_states.keys()
@@ -154,6 +165,7 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
     }
     for _, js_repr in js_reprs.items():
       assert self.observation_space.contains(js_repr), f"Invalid `JointState` to observation conversion."
+    js_reprs[self._eval_agent_id]=self.observation_space.sample()
     return js_reprs
 
   def render(self, mode="rgb_array"):
@@ -203,7 +215,18 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
         "policy_class":None,  # infer automatically from Trainer
         "observation_space": self.observation_space,  # ham's joint_state_space
         "action_space": cp.choice_space,  # choicepoint1's choice_space
+        "config": {},
       }
       for cp in self.ham.cpm
     }
-    return policies
+    policies[self._eval_agent_id]={
+      "policy_class": None,
+      "observation_space": self.observation_space, # Don't need
+      "action_space": spaces.Discrete(1), # Don't need
+      "config": {
+        "gamma": 1
+      }
+    }
+    policy_mapping_fn = lambda agent_id, episode, worker, **kwargs: agent_id
+    policies_to_train = self.ham.cpm.choicepoints_order
+    return policies, policy_mapping_fn, policies_to_train

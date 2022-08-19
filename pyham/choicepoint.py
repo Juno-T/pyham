@@ -6,6 +6,7 @@ class Choicepoint(NamedTuple):
   name: str
   choice_space: spaces.Space
   discount: float
+  discount_correction: float = 1.0
   id: int=-1 # Assign and use by ChoicepointManager.
 
 class ChoicepointsManager:
@@ -57,6 +58,10 @@ class ChoicepointsManager:
         self.choicepoints[name].discount 
         for name in self.choicepoints_order
       ])
+    self.init_discounts_correction = np.array([
+      self.choicepoints[name].discount_correction 
+      for name in self.choicepoints_order
+    ])
 
   def reset(self):
     """
@@ -64,6 +69,7 @@ class ChoicepointsManager:
     """
     self.cumulative_rewards = np.zeros((self.N,))
     self.discounts = np.ones((self.N,))
+    self.discounts_correction = np.ones((self.N,))/self.init_discounts_correction
     self.tau = np.zeros((self.N,))
 
   def distribute_reward(self, reward: float):
@@ -75,17 +81,26 @@ class ChoicepointsManager:
     self.tau+=1
 
   def reset_choicepoint(self, cp_name: str):
-    cp_idx = self.choicepoints[cp_name].id
-    
-    cp_cumulative_reward = self.cumulative_rewards[cp_idx]
-    cp_tau = self.tau[cp_idx]
+    cp_cumulative_reward, cp_tau = self.get_reward_tau(cp_name)
 
+    cp_idx = self.choicepoints[cp_name].id
     self.cumulative_rewards[cp_idx]=0
     self.discounts[cp_idx]=1
+    self.discounts_correction[cp_idx]=1
     self.tau[cp_idx]=0
 
     return cp_cumulative_reward, cp_tau
   
+  def get_reward_tau(self, cp_name: str):
+    cp_idx = self.choicepoints[cp_name].id
+    cp_cumulative_reward = self.cumulative_rewards[cp_idx]*self.discounts_correction[cp_idx]
+    cp_tau = self.tau[cp_idx]
+    return cp_cumulative_reward, cp_tau
+
+  def update_discounts_correction(self):
+    self.discounts_correction*=self.init_discounts_correction
+
+
   def __len__(self):
     return self.N
 

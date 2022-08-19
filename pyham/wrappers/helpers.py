@@ -17,7 +17,7 @@ def create_concat_joint_state_env(ham: HAM,
                                   machine_stack_cap: int = 1,
                                   dtype=np.float32,
                                   eval: bool=False,
-                                  will_render=False
+                                  **kwargs,
                                   ):
   """
     A helper function to easily create InducedMDP for HAM `ham` and environment `env`.
@@ -40,7 +40,7 @@ def create_concat_joint_state_env(ham: HAM,
       machine_stack_cap: Number of top most machines to include in the joint state representation, pad if needed.
       dtype: data type for `spaces.Box`
       eval: whether to instantiate env for evaluation or not.
-      will_render: If true, pre-render every frames even if `render()` is not being called. Must be set to true if `render()` method is expected to be called.
+      Extra keyword arguments can be specified. See `SingleChoiceTypeEnv` or `MultiChoiceTypeEnv`
     Return:
       Wrapped env with joint state representation defined as concatenated numpy array between original env's observation space and fixed length of machine stack representations.
   """
@@ -81,7 +81,7 @@ def create_concat_joint_state_env(ham: HAM,
                     initial_machine=initial_machine,
                     initial_args=initial_args,
                     eval=eval,
-                    will_render=will_render)
+                    **kwargs)
 
 def _concat_Box_joint_state(og_space, repr_length, np_pad_config: dict, machine_stack_cap: int, dtype):
   machine_stack_repr_shape = (machine_stack_cap*repr_length,)
