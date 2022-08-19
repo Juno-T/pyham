@@ -67,13 +67,13 @@ class TestBoxEnvFunctionality(unittest.TestCase):
   # def test_manual_init(self):
   #   pass
   def test_verify_policies_config(self):
-    config = self.wrapped_env_no_render.rllib_policies_config()
-    self.assertTrue("cp1" in config)
-    self.assertTrue("cp2" in config)
-    self.assertTrue(config["cp1"]["observation_space"].shape==(8,))
-    self.assertTrue(config["cp2"]["observation_space"].shape==(8,))
-    self.assertTrue(config["cp1"]["action_space"].n==3)
-    self.assertTrue(config["cp2"]["action_space"].n==2)
+    policies, policy_mapping_fn, policies_to_train = self.wrapped_env_no_render.rllib_policies_config()
+    self.assertTrue("cp1" in policies)
+    self.assertTrue("cp2" in policies)
+    self.assertTrue(policies["cp1"]["observation_space"].shape==(8,))
+    self.assertTrue(policies["cp2"]["observation_space"].shape==(8,))
+    self.assertTrue(policies["cp1"]["action_space"].n==3)
+    self.assertTrue(policies["cp2"]["action_space"].n==2)
 
   @pytest.mark.timeout(3)
   def test_running(self, env=None):
