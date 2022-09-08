@@ -28,7 +28,6 @@ def make_wrapped_env(config: EnvContext):
   eval = config.get("eval", False)
   original_env = make_taxi_env()
 
-
   create_machine = None
   if config["machine_type"]=="trivial":
     create_machine = create_trivial_taxi_ham
@@ -44,8 +43,6 @@ def make_wrapped_env(config: EnvContext):
     "eval": eval,
     "will_render": False,
   }
-  # if config["machine_type"]=="get-put":
-  #   kwargs["raw_rewards"] = True
 
   wrapped_env = create_concat_joint_state_env(ham, 
                                               original_env,
@@ -93,17 +90,6 @@ def main(config):
     "replay_buffer_config": config["replay_buffer_config"], # DQN
     "training_intensity": config["training_intensity"], # DQN
 
-    # EXP
-    # "evaluation_interval": config["evaluation_interval"],
-    # "evaluation_duration": config["evaluation_duration"],
-    # "evaluation_config": {
-    #   "env_config": {
-    #     **config["env_config"],
-    #     "eval": True,
-    #   },
-    #   "explore": False,
-    # },
-
     # SPEC
     "num_workers": 3,
     "num_gpus": 0.25,
@@ -122,9 +108,6 @@ def main(config):
     config=train_config,
     num_samples=config["num_samples"],
     checkpoint_at_end=config["save_checkpoints"],
-    # keep_checkpoints_num=1, 
-    # checkpoint_score_attr="evaluation/episode_reward_mean",
-    # checkpoint_freq=config["evaluation_interval"],
     callbacks=[WandbLoggerCallback(**wandb_init)]
   )
 
@@ -167,9 +150,6 @@ if __name__=="__main__":
     "discount": 0.99,
     "rollout_fragment_length": 200,
     "train_batch_size": 200, # default
-    # "model": {
-    #   "fcnet_hiddens": [32, 32],
-    # },
     "exploration_config": {
       "type": "EpsilonGreedy",
       "warmup_timesteps": 40000,
@@ -239,12 +219,6 @@ if __name__=="__main__":
       tuned_config = yaml.safe_load(f)["config"]
     config = deep_dict_update(config, tuned_config)
 
-  # if not args.hparam_search:
-  #   config["evaluation_interval"] = ceil(config["evaluation_interval_timesteps"]//config["train_batch_size"])
-  # else:
-  #   config["evaluation_interval"] = tune.sample_from(
-  #     lambda spec: ceil(config["evaluation_interval_timesteps"]//spec.config.train_batch_size)
-  #   )
   config = {**config, **config["env_config"]}
   print("Config:\n",json.dumps(config, sort_keys=False, indent=2, default=str))
 
@@ -252,5 +226,3 @@ if __name__=="__main__":
   register_env(config["env"], make_wrapped_env)
   with Display(visible=False, size=(1400, 900)) as disp:
     main(config)
-  
-
