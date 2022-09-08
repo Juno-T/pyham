@@ -67,6 +67,8 @@ class ChoicepointsManager:
     """
       Episodic reset
     """
+    if self.N==0:
+      return None
     self.cumulative_rewards = np.zeros((self.N,))
     self.discounts = np.ones((self.N,))
     self.discounts_correction = np.ones((self.N,))/self.init_discounts_correction
