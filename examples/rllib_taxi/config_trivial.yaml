@@ -1,0 +1,8 @@
+config:
+  learning_rate: .0003
+  train_batch_size: 500
+  training_intensity: 25
+  total_timesteps: 400000
+  exploration_config:
+    epsilon_timesteps: 300000
+  exploration_fraction: null
