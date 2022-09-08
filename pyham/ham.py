@@ -85,7 +85,6 @@ class HAM:
     self._is_alive = False
 
     self._current_observation = current_observation
-    self.current_choicepoint_name = None
     self.current_choicepoint = None
     self._machine_stack = []
     self._cumulative_actual_reward = 0.
@@ -143,7 +142,7 @@ class HAM:
         for cp in self.cpm
       }
       reward = {
-        cp.name: self.cpm.cumulative_rewards[cp.id]
+        cp.name: self.cpm.get_reward_tau(cp.name)[0]
         for cp in self.cpm
       }
       self.cpm.reset()
@@ -183,19 +182,19 @@ class HAM:
       return func
     return register_func
 
-  def choicepoint(self, name: str, choice_space: spaces.Space, discount: float):
+  def choicepoint(self, name: str, choice_space: spaces.Space, discount: float, discount_correction: float = 1.0):
     """
       Define choicepoint
     """
     if self.is_alive:
       self.terminate()
-      raise("Cannot create choicepoint inside a machine.")
+      raise Exception("Cannot create choicepoint inside a machine.")
 
     if name in self.cpm.choicepoints_order:
       logging.warn(f"Choice point named {name} is already existed. Ignore new assignment.")
       return 
 
-    choicepoint = Choicepoint(name, choice_space, discount)
+    choicepoint = Choicepoint(name, choice_space, discount, discount_correction)
     self.cpm.add_choicepoint(choicepoint)
     return choicepoint
     
@@ -278,6 +277,7 @@ class HAM:
     self.current_choicepoint = choicepoint
     self._choice_point_lock.release_to("main")
     self._choice_point_lock.acquire_for("ham")
+    self.cpm.update_discounts_correction()
     if not self._is_alive :
       return 0
     return self._choice
@@ -307,10 +307,10 @@ class HAM:
       return 0
     
     if self.action_executor is None:
-      raise("`action_executor` must be defined.")
+      raise Exception("`action_executor` must be defined.")
     
     if (not isinstance(args, list)) and (not isinstance(args, tuple)):
-      raise(f"Argument {args} must be list or tuple, not {type(args)}")
+      raise Exception(f"Argument {args} must be list or tuple, not {type(args)}")
     
     self._choice_point_lock = AlternateLock("main")
     self.cpm.reset()
@@ -344,7 +344,7 @@ class HAM:
 
     if not self.current_choicepoint.choice_space.contains(choice):
       self.terminate()
-      raise(
+      raise Exception(
         f"Invalid choice \'{choice}\' for choicepoint {self.current_choicepoint.name} \
           with {str(self.current_choicepoint.choice_space)} choice space")
     

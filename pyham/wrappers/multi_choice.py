@@ -1,7 +1,7 @@
 try:
   from ray.rllib.env.multi_agent_env import MultiAgentEnv
 except:
-  raise("Multi-choice environment requires `ray[rllib]`.")
+  raise Exception("Multi-choice environment requires `ray[rllib]`.")
 
 from typing import Optional, Union, Callable, Any, Dict
 import copy
@@ -28,6 +28,7 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
     initial_args: Union[list, tuple]=[],
     eval: bool = False,
     will_render: bool = False,
+    raw_rewards: bool = False,
   ):
     """
       Parameters:
@@ -49,16 +50,21 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
     self.initial_args = initial_args
     self.eval = eval
     self.will_render = will_render
+    self.raw_rewards = raw_rewards
+    self._eval_agent_id = "ACTUAL" # A work-around to accumulate actual environment's rewards
+    self._agent_ids = set(self.ham.cpm.choicepoints_order+[self._eval_agent_id])
 
     self._all_not_done = {
       cp.name: False
       for cp in self.ham.cpm
     }
+    self._all_not_done[self._eval_agent_id] = False
     self._all_not_done["__all__"] = False
     self._all_done = {
       cp.name: True
       for cp in self.ham.cpm
     }
+    self._all_done[self._eval_agent_id] = True
     self._all_done["__all__"] = True
     
     
@@ -92,7 +98,7 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
       return ret
     return _action_executor
 
-  def step(self, choice):
+  def step(self, choice: dict):
     """
       gym-like step api
       Parameters:
@@ -104,14 +110,29 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
           done: Environment done or ham done.
           info: dictionary with extra info, e.g. info['next_choice_point']
     """
-    assert self.ham.is_alive, "HAMs is not started or has stopped. Try reset env."
+    assert self.ham.is_alive, "HAMs is not started or had stopped. Try reset env."
+    if choice=={}:
+      return {self.ham.current_choicepoint.name: self.observation_space.sample()}, {}, self._all_not_done, {}
 
     self.render_stack=[]
-    joint_states, rewards, done, info = self.ham.step(choice)
+    next_cp_name =self.ham.current_choicepoint.name
+    assert next_cp_name in choice
+    joint_states, rewards, done, info = self.ham.step(choice[next_cp_name])
     self.actual_ep_len += info["actual_tau"]
     js_reprs = {
       cp_name: self.joint_state_to_representation(joint_state)
       for cp_name, joint_state in joint_states.items()
+    }
+    js_reprs[self._eval_agent_id]=self.observation_space.sample()
+    if self.raw_rewards:
+      rewards = {
+        cp.name: info["actual_reward"]
+        for cp in self.ham.cpm
+      }
+    rewards[self._eval_agent_id] = info["actual_reward"]
+    info = {
+      cp_name: info
+      for cp_name in joint_states.keys()
     }
     done = self._all_done if done else self._all_not_done
     return js_reprs, rewards, done, info
@@ -144,6 +165,7 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
     }
     for _, js_repr in js_reprs.items():
       assert self.observation_space.contains(js_repr), f"Invalid `JointState` to observation conversion."
+    js_reprs[self._eval_agent_id]=self.observation_space.sample()
     return js_reprs
 
   def render(self, mode="rgb_array"):
@@ -193,7 +215,18 @@ class MultiChoiceTypeEnv(MultiAgentEnv):
         "policy_class":None,  # infer automatically from Trainer
         "observation_space": self.observation_space,  # ham's joint_state_space
         "action_space": cp.choice_space,  # choicepoint1's choice_space
+        "config": {},
       }
       for cp in self.ham.cpm
     }
-    return policies
+    policies[self._eval_agent_id]={
+      "policy_class": None,
+      "observation_space": self.observation_space, # Don't need
+      "action_space": spaces.Discrete(1), # Don't need
+      "config": {
+        "gamma": 1
+      }
+    }
+    policy_mapping_fn = lambda agent_id, episode, worker, **kwargs: agent_id
+    policies_to_train = self.ham.cpm.choicepoints_order
+    return policies, policy_mapping_fn, policies_to_train

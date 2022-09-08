@@ -5,3 +5,4 @@ moviepy==1.0.3
 imageio==2.19.5
 ray[rllib]
 ray==2.0.0rc0
+seaborn>=0.12.0

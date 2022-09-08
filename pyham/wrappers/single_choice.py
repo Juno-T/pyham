@@ -238,7 +238,7 @@ def create_concat_joint_state_SingleChoiceTypeEnv(ham: HAM,
     if repr_length is None:
       repr_length = _obj_len(repr)
     elif repr_length != _obj_len(repr):
-      raise("Unable to create joint state representation due to inconsistent representation length.")
+      raise Exception("Unable to create joint state representation due to inconsistent representation length.")
   
   build_js_args = (env.observation_space, repr_length, np_pad_config, machine_stack_cap)
   if isinstance(env.observation_space, spaces.Box):
@@ -246,7 +246,7 @@ def create_concat_joint_state_SingleChoiceTypeEnv(ham: HAM,
   elif isinstance(env.observation_space, spaces.MultiDiscrete):
     js_space, js2repr = _concat_MultiDiscrete_joint_state(*build_js_args)
   else:
-    raise("Unsupported observation space type.")
+    raise Exception("Unsupported observation space type.")
   return SingleChoiceTypeEnv(ham=ham, 
                               env=env,
                               joint_state_space=js_space,
