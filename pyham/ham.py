@@ -21,7 +21,15 @@ class HAM:
     """
       A hierarchical of abstract machine (HAM) class.
       Parameters:
-        action_executor: A function that handle action execution. Must return (obsv, reward, done, info). Can be as simple as gym's env.step.
+        action_executor: A function that can execute a primitive action and return a tuple of (observation, reward, done, info). 
+                         It could be as simple as `gym.Env.step()` function. `action_executor` can be registered later (if not 
+                         possible at the time of initialization) by assigning directly to `HAM.action_executor` attribute.
+        representation: specify how to represent each machine numerically. The default is a keyword `'onehot'` so that each 
+                        machine will be represented by one-hot vector with the length equal to the number of machines registered. 
+                        Otherwise, a function that return representation must be specified. See `onehot` function example in 
+                        pyham/utils/machine_representation.py.
+        eval: Whether to use evaluation mode or not, default is `False` which is not to use evaluation mode. Evaluation mode can 
+              be switch on/off later with `HAM.set_eval(eval: bool)`.
     """
     self.action_executor = action_executor
     self.machine_repr = MachineRepresentation(representation)
