@@ -1,5 +1,7 @@
 # pyHAM: Python implementation of Hierarchies of Abstract Machine
 
+:warning: This is not an official implementation.
+
 **pyHAM** is a python implementation of Hierarchies of Abstract Machine, HAM, first introduced by [Parr and Russell (1997)](https://proceedings.neurips.cc/paper/1997/file/5ca3e9b122f61f8f06494c97b1afccf3-Paper.pdf). The goal of this implementation is to make it easy for both researchers and practitioners to start developing reinforcement learning algorithm using HAM. Due to its simplicity for starting and integrating with other RL library, I hope that HAM and Hierarchical Reinforcement Learning (HRL) would receive more attention from the community.
 
 [**:books: See wiki for more detailed documentation.**](https://github.com/Juno-T/pyham/wiki)
